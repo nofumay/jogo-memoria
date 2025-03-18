@@ -174,6 +174,8 @@
   justify-content: space-between;
   align-items: center;
   backdrop-filter: blur(5px);
+  position: relative;
+  z-index: 100;
 }
 
 .navbar a {
@@ -206,6 +208,30 @@
 
 .navbar-button:hover {
   background-color: rgba(255, 255, 255, 0.3);
+}
+
+.navbar-user {
+  padding: 8px 15px;
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  margin: 0 10px;
+}
+
+.navbar-mobile-toggle {
+  display: none;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 30px;
+  height: 21px;
+  cursor: pointer;
+}
+
+.navbar-mobile-toggle span {
+  height: 3px;
+  width: 100%;
+  background-color: white;
+  border-radius: 10px;
+  transition: all 0.3s ease;
 }
 
 /* Auth Form Styles */
@@ -623,6 +649,45 @@
   .step {
     max-width: 100%;
   }
+  
+  .navbar-mobile-toggle {
+    display: flex;
+  }
+  
+  .navbar-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    background-color: rgba(0, 0, 0, 0.9);
+    padding: 20px;
+    backdrop-filter: blur(10px);
+    clip-path: polygon(0 0, 100% 0, 100% 0, 0 0);
+    transition: all 0.3s ease;
+    z-index: 10;
+  }
+  
+  .navbar-menu.open {
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+  }
+  
+  .navbar-menu a {
+    margin: 10px 0;
+    width: 100%;
+    text-align: center;
+  }
+  
+  .navbar-user {
+    margin: 10px 0;
+    width: 100%;
+    text-align: center;
+  }
+  
+  .navbar-button {
+    width: 100%;
+    margin: 10px 0;
+  }
 }
 
 @media (max-width: 480px) {
@@ -631,15 +696,7 @@
   }
   
   .navbar {
-    flex-direction: column;
-    gap: 10px;
-  }
-  
-  .navbar-menu {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 10px;
+    padding: 15px;
   }
   
   .auth-form {
@@ -652,5 +709,14 @@
   
   .game-stats {
     justify-content: center;
+  }
+  
+  .home-features .card {
+    padding: 20px 15px;
+  }
+  
+  .button {
+    padding: 10px 20px;
+    margin: 5px;
   }
 }
