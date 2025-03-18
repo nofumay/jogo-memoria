@@ -1,40 +1,50 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import AuthService from '../services/AuthService';
 
 const Home = () => {
-  const isAuthenticated = AuthService.isAuthenticated();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  
+  useEffect(() => {
+    // Verificar autenticação do usuário aqui (implementação futura)
+    // Por enquanto, vamos simular que não está autenticado
+    setIsAuthenticated(false);
+  }, []);
 
   return (
     <div className="home-container">
-      <h1>Bem-vindo ao Jogo da Memória Multiplayer</h1>
-      <p>Teste sua memória, desafie seus amigos e divirta-se com nosso jogo interativo!</p>
+      <h1>Jogo da Memória Multiplayer</h1>
+      <p>Bem-vindo ao melhor jogo da memória online! Teste suas habilidades de memorização, 
+      desafie seus amigos e divirta-se com diferentes temas e níveis de dificuldade.</p>
       
-      {isAuthenticated ? (
-        <div className="home-buttons">
-          <Link to="/game" className="button">Iniciar Jogo</Link>
-        </div>
-      ) : (
-        <div className="home-buttons">
-          <Link to="/login" className="button">Login</Link>
-          <Link to="/register" className="button" style={{ marginLeft: '10px', backgroundColor: 'rgba(255, 255, 255, 0.3)' }}>Registrar</Link>
-        </div>
-      )}
+      <div className="home-buttons">
+        {isAuthenticated ? (
+          <Link to="/game" className="button start-game-button">Iniciar Jogo</Link>
+        ) : (
+          <>
+            <Link to="/login" className="button">Entrar</Link>
+            <Link to="/register" className="button">Cadastrar</Link>
+          </>
+        )}
+      </div>
       
+      <h2>Novidades e Funcionalidades</h2>
       <div className="home-features">
         <div className="card">
-          <h3>🎮 Multiplayer</h3>
-          <p>Jogue com seus amigos em tempo real! Crie salas e convide outros jogadores para competir.</p>
+          <h3>Multiplayer</h3>
+          <p>Jogue com amigos em tempo real! Crie uma sala e compartilhe o código para 
+          que seus amigos entrem na partida.</p>
         </div>
         
         <div className="card">
-          <h3>🔄 Diversos Temas</h3>
-          <p>Escolha entre diferentes temas: animais, frutas, emojis e esportes para variar a diversão!</p>
+          <h3>Temas Variados</h3>
+          <p>Escolha entre diferentes temas como animais, frutas, emojis e esportes para 
+          personalizar sua experiência.</p>
         </div>
         
         <div className="card">
-          <h3>🏆 Níveis de Dificuldade</h3>
-          <p>Desafie-se com os níveis fácil, médio e difícil, cada um com mais cartas e menos tempo.</p>
+          <h3>Níveis de Dificuldade</h3>
+          <p>Desafie-se com diferentes níveis: fácil, médio e difícil, cada um com seu 
+          próprio layout e número de cartas.</p>
         </div>
       </div>
       
@@ -43,28 +53,38 @@ const Home = () => {
         <div className="steps">
           <div className="step">
             <div className="step-number">1</div>
-            <p>Clique em uma carta para virá-la</p>
+            <p>Escolha um tema e um nível de dificuldade para começar.</p>
           </div>
+          
           <div className="step">
             <div className="step-number">2</div>
-            <p>Tente encontrar o par correspondente</p>
+            <p>Clique nas cartas para virá-las e memorize suas posições.</p>
           </div>
+          
           <div className="step">
             <div className="step-number">3</div>
-            <p>Se encontrar o par, as cartas ficam viradas</p>
+            <p>Encontre todos os pares de cartas correspondentes para vencer.</p>
           </div>
+          
           <div className="step">
             <div className="step-number">4</div>
-            <p>Complete todos os pares no menor tempo possível!</p>
+            <p>Compete pelo melhor tempo e menor número de movimentos!</p>
           </div>
         </div>
+      </div>
+      
+      <div className="home-creator">
+        <h2>Sobre o Criador</h2>
+        <p>Este jogo foi desenvolvido com carinho por <strong>Diego Silva</strong>, 
+        um apaixonado por jogos clássicos e tecnologia. Criado para proporcionar diversão 
+        e exercitar a memória de jogadores de todas as idades.</p>
       </div>
       
       <div className="home-footer">
         {isAuthenticated ? (
           <Link to="/game" className="button start-game-button">Começar a Jogar Agora!</Link>
         ) : (
-          <Link to="/register" className="button start-game-button">Criar uma Conta</Link>
+          <p>Faça login ou cadastre-se para começar a jogar e salvar suas pontuações!</p>
         )}
       </div>
     </div>
