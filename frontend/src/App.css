@@ -22,6 +22,7 @@
   margin: 20px auto;
   max-width: 600px;
   perspective: 1000px; /* Para efeito 3D */
+  position: relative;
 }
 
 .game-board-easy {
@@ -107,6 +108,67 @@
   }
 }
 
+/* Game Start Overlay */
+.game-start-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 10;
+  border-radius: 12px;
+  padding: 20px;
+  text-align: center;
+  backdrop-filter: blur(5px);
+}
+
+.game-start-overlay h3 {
+  margin-top: 0;
+  font-size: 1.5rem;
+  margin-bottom: 10px;
+}
+
+.game-start-overlay p {
+  margin-bottom: 20px;
+  opacity: 0.8;
+}
+
+.game-start-overlay .button-group {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.game-start-overlay .join-room {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  max-width: 350px;
+  margin-top: 10px;
+}
+
+.settings-button {
+  background-color: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  margin-left: 10px;
+}
+
+.settings-button:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
 .game-info {
   display: flex;
   justify-content: space-between;
@@ -116,12 +178,14 @@
   background-color: rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   backdrop-filter: blur(5px);
+  flex-direction: column;
 }
 
 .game-stats {
   display: flex;
   flex-wrap: wrap;
   gap: 15px;
+  align-items: center;
 }
 
 .game-stats p {
@@ -140,6 +204,8 @@
   margin-bottom: 30px;
   backdrop-filter: blur(5px);
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  margin-top: 20px;
 }
 
 .game-settings h3 {
@@ -857,6 +923,8 @@ input:checked + .toggle-slider:before {
   display: flex;
   flex-direction: column;
   gap: 15px;
+  width: 100%;
+  margin-top: 20px;
 }
 
 .join-room {
@@ -914,6 +982,14 @@ input:checked + .toggle-slider:before {
 
 .players-list li:last-child {
   margin-bottom: 0;
+}
+
+/* Game Container */
+.game-container {
+  position: relative;
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
 }
 
 /* Responsive Design */
@@ -1009,6 +1085,10 @@ input:checked + .toggle-slider:before {
   
   .home-creator {
     padding: 20px;
+  }
+  
+  .game-stats {
+    justify-content: center;
   }
 }
 
