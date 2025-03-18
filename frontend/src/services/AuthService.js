@@ -82,40 +82,75 @@ const AuthService = {
   
   // Função para logout
   logout: () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    try {
+      // Limpar todos os dados relacionados à sessão
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      
+      // Limpar qualquer outra informação de sessão que possa existir
+      const currentUser = AuthService.getCurrentUser();
+      if (currentUser && currentUser.username) {
+        localStorage.removeItem(`memoryGamePoints_${currentUser.username}`);
+      }
+      
+      // Limpar cache de autenticação
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.clear();
+      }
+      
+      // Se a API estiver sendo usada, notificar o servidor
+      if (!USE_LOCAL_AUTH) {
+        // Esta seria a chamada para o backend se tivéssemos uma API
+        // axios.post(`${API_URL}/auth/logout`);
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Erro ao fazer logout:', error);
+      return false;
+    }
   },
   
   // Verifica se o usuário está autenticado
   isAuthenticated: () => {
-    const token = localStorage.getItem('token');
-    if (token) return true;
-    
-    // Se não encontrou token, tenta verificar na UI
-    return checkUIForAuthentication();
+    try {
+      const token = localStorage.getItem('token');
+      const user = localStorage.getItem('user');
+      
+      if (token && user) {
+        return true;
+      }
+      
+      // Se não encontrou token, tenta verificar na UI
+      return checkUIForAuthentication();
+    } catch (error) {
+      console.error('Erro ao verificar autenticação:', error);
+      return false;
+    }
   },
   
   // Obtém o usuário atual
   getCurrentUser: () => {
-    const userStr = localStorage.getItem('user');
-    if (userStr) {
-      try {
+    try {
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
         return JSON.parse(userStr);
-      } catch (error) {
-        return null;
       }
+      
+      // Se não há usuário no localStorage, mas vemos na UI
+      if (checkUIForAuthentication()) {
+        return {
+          id: 'simulated-id',
+          username: 'fumay',
+          email: 'fumay@example.com'
+        };
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Erro ao obter usuário atual:', error);
+      return null;
     }
-    
-    // Se não há usuário no localStorage, mas vemos na UI
-    if (checkUIForAuthentication()) {
-      return {
-        id: 'simulated-id',
-        username: 'fumay',
-        email: 'fumay@example.com'
-      };
-    }
-    
-    return null;
   },
   
   // Obtém o token JWT
