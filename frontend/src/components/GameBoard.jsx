@@ -4,6 +4,7 @@ import io from 'socket.io-client';
 import Card from './Card';
 import GameSettings from './GameSettings';
 import AuthService from '../services/AuthService';
+import soundService from '../services/SoundService';
 
 // Configurações do jogo
 const DIFFICULTY_LEVELS = {
@@ -40,11 +41,18 @@ const GameBoard = () => {
   const [timer, setTimer] = useState(0);
   const [timerInterval, setTimerInterval] = useState(null);
   const [timerEnabled, setTimerEnabled] = useState(true);
-  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [soundEnabled, setSoundEnabled] = useState(!soundService.getMuteState());
   const [showSettings, setShowSettings] = useState(false);
+  const [gameInputRoomId, setGameInputRoomId] = useState('');
 
   // Referência ao jogador atual
   const [currentPlayer, setCurrentPlayer] = useState(null);
+
+  // Efeito para configurar o SoundService
+  useEffect(() => {
+    // Sincronizar o estado do som com o SoundService
+    soundService.toggleMute(!soundEnabled);
+  }, [soundEnabled]);
 
   // Efeito para carregar o jogador atual
   useEffect(() => {
@@ -71,12 +79,14 @@ const GameBoard = () => {
 
     newSocket.on('roomCreated', (data) => {
       setRoomId(data.roomId);
+      setGameInputRoomId(data.roomId);
       toast.success(`Sala criada: ${data.roomId}`);
     });
 
     newSocket.on('playerJoined', (data) => {
       setPlayers(data.players);
       toast.info(`${data.playerName} entrou na sala!`);
+      soundService.play('opponent_move');
     });
 
     newSocket.on('playerLeft', (data) => {
@@ -89,6 +99,7 @@ const GameBoard = () => {
       setGameStarted(true);
       setLoading(false);
       toast.success('O jogo começou!');
+      soundService.play('start');
       startTimer();
     });
 
@@ -106,6 +117,7 @@ const GameBoard = () => {
     newSocket.on('gameOver', (data) => {
       setGameOver(true);
       stopTimer();
+      soundService.play('win');
       toast.success(`Jogo finalizado! Vencedor: ${data.winner}`);
     });
 
@@ -116,19 +128,6 @@ const GameBoard = () => {
       clearInterval(timerInterval);
     };
   }, []);
-
-  // Reproduzir som
-  const playSound = (soundName) => {
-    if (!soundEnabled) return;
-    
-    try {
-      const audio = new Audio(`/sounds/${soundName}.mp3`);
-      audio.volume = 0.5;
-      audio.play().catch(error => console.error("Erro ao reproduzir som:", error));
-    } catch (error) {
-      console.error("Erro ao criar objeto de áudio:", error);
-    }
-  };
 
   // Iniciar timer
   const startTimer = () => {
@@ -259,7 +258,7 @@ const GameBoard = () => {
     }
 
     // Reproduzir som de clique
-    playSound('flip');
+    soundService.play('flip');
 
     // Adicionar a carta ao estado de cartas viradas
     const newFlippedCards = [...flippedCards, clickedCard];
@@ -297,7 +296,7 @@ const GameBoard = () => {
         setFlippedCards([]);
 
         // Reproduzir som de match
-        playSound('match');
+        soundService.play('match');
 
         // Enviar atualização de pontuação no modo multijogador
         if (isMultiplayer && socket) {
@@ -315,7 +314,7 @@ const GameBoard = () => {
           stopTimer();
           
           // Reproduzir som de vitória
-          playSound('win');
+          soundService.play('win');
           
           toast.success('Parabéns! Você completou o jogo!');
 
@@ -332,7 +331,7 @@ const GameBoard = () => {
         const { flipDelay } = DIFFICULTY_LEVELS[difficulty];
         
         // Reproduzir som de erro
-        playSound('error');
+        soundService.play('error');
         
         setTimeout(() => {
           setCards(
@@ -354,7 +353,7 @@ const GameBoard = () => {
     setGameStarted(true);
     startTimer();
     setShowSettings(false);
-    playSound('start');
+    soundService.play('start');
   };
 
   // Lidar com cartas viradas pelo oponente
@@ -365,7 +364,7 @@ const GameBoard = () => {
     if (card) {
       card.isFlipped = true;
       setCards(newCards);
-      playSound('opponent_move');
+      soundService.play('opponent_move');
     }
   };
 
@@ -377,9 +376,10 @@ const GameBoard = () => {
       }
       setIsMultiplayer(false);
       setRoomId('');
+      setGameInputRoomId('');
       setPlayers([]);
     }
-    playSound('restart');
+    soundService.play('restart');
     initGame();
   };
 
@@ -394,6 +394,17 @@ const GameBoard = () => {
   // Alternar visualização das configurações
   const toggleSettings = () => {
     setShowSettings(!showSettings);
+  };
+
+  // Alternar o som
+  const toggleSound = () => {
+    setSoundEnabled(!soundEnabled);
+  };
+
+  // Ajustar o volume do som
+  const handleVolumeChange = (e) => {
+    const value = parseFloat(e.target.value);
+    soundService.setVolume(value);
   };
 
   // Renderizar o tabuleiro de jogo
@@ -421,9 +432,11 @@ const GameBoard = () => {
             timerEnabled={timerEnabled}
             setTimerEnabled={setTimerEnabled}
             soundEnabled={soundEnabled}
-            setSoundEnabled={setSoundEnabled}
+            setSoundEnabled={toggleSound}
             resetGame={resetGame}
             currentThemes={THEMES}
+            handleVolumeChange={handleVolumeChange}
+            volume={soundService.getVolume()}
           />
         )}
         
@@ -483,13 +496,13 @@ const GameBoard = () => {
                 <input 
                   type="text" 
                   placeholder="ID da Sala"
-                  onChange={(e) => setRoomId(e.target.value)}
-                  value={roomId}
+                  onChange={(e) => setGameInputRoomId(e.target.value)}
+                  value={gameInputRoomId}
                 />
                 <button 
                   className="button"
-                  onClick={() => joinRoom(roomId)}
-                  disabled={!roomId}
+                  onClick={() => joinRoom(gameInputRoomId)}
+                  disabled={!gameInputRoomId}
                 >
                   Entrar na Sala
                 </button>
