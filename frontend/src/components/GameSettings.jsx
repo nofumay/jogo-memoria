@@ -10,7 +10,9 @@ const GameSettings = ({
   soundEnabled,
   setSoundEnabled,
   resetGame,
-  currentThemes
+  currentThemes,
+  handleVolumeChange,
+  volume = 0.7
 }) => {
   return (
     <div className="game-settings">
@@ -80,11 +82,37 @@ const GameSettings = ({
             </label>
           </div>
         </div>
+        
+        {soundEnabled && (
+          <div className="sound-controls">
+            <h4>Volume</h4>
+            <div className="volume-slider-container">
+              <span className="volume-icon low">🔈</span>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.1"
+                value={volume}
+                onChange={handleVolumeChange}
+                className="volume-slider"
+              />
+              <span className="volume-icon high">🔊</span>
+            </div>
+            <p className="volume-level">Nível: {Math.round(volume * 100)}%</p>
+          </div>
+        )}
       </div>
 
-      <button className="reset-button" onClick={resetGame}>
-        Reiniciar Jogo
-      </button>
+      <div className="settings-actions">
+        <button className="reset-button" onClick={resetGame}>
+          Reiniciar Jogo
+        </button>
+        
+        <div className="settings-note">
+          <p>As configurações serão salvas automaticamente.</p>
+        </div>
+      </div>
     </div>
   );
 };
