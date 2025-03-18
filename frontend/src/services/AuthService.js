@@ -1,11 +1,17 @@
 import axios from 'axios';
+import localStorageService from './localStorageService';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+const USE_LOCAL_AUTH = true; // Alternar entre autenticação local e API
 
 const AuthService = {
   // Função para login
   login: async (username, password) => {
     try {
+      if (USE_LOCAL_AUTH) {
+        return localStorageService.login(username, password);
+      }
+      
       const response = await axios.post(`${API_URL}/auth/login`, {
         username,
         password
@@ -19,6 +25,10 @@ const AuthService = {
   // Função para registro
   register: async (username, email, password) => {
     try {
+      if (USE_LOCAL_AUTH) {
+        return localStorageService.register(username, email, password);
+      }
+      
       const response = await axios.post(`${API_URL}/auth/register`, {
         username,
         email,
