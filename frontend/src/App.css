@@ -24,6 +24,17 @@
   perspective: 1000px; /* Para efeito 3D */
 }
 
+.game-board-easy {
+  grid-template-columns: repeat(3, 1fr);
+  max-width: 450px;
+}
+
+.game-board-hard {
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  max-width: 650px;
+}
+
 .card {
   height: 120px;
   background-color: transparent;
@@ -99,12 +110,59 @@
 .game-info {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: 20px;
   padding: 15px;
   background-color: rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   backdrop-filter: blur(5px);
+}
+
+.game-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.game-stats p {
+  margin: 0;
+  padding: 8px 12px;
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 20px;
+  font-weight: 500;
+}
+
+/* Difficulty and Theme Selectors */
+.difficulty-selector,
+.theme-selector {
+  margin-bottom: 15px;
+}
+
+.difficulty-selector h3,
+.theme-selector h3 {
+  margin-bottom: 10px;
+  font-size: 1rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.button-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.button-group .button {
+  flex: 1;
+  min-width: 80px;
+  padding: 8px 12px;
+  text-align: center;
+  margin: 0;
+}
+
+.button-group .button.active {
+  background-color: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.5);
 }
 
 /* Navbar Styles */
@@ -292,6 +350,13 @@
   box-shadow: 0 7px 14px rgba(0, 0, 0, 0.2);
 }
 
+.button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
 .home-features {
   display: flex;
   flex-wrap: wrap;
@@ -346,8 +411,14 @@
 
 .game-over p {
   font-size: 1.5rem;
-  margin-bottom: 30px;
+  margin-bottom: 10px;
   color: white;
+}
+
+.game-over .button {
+  margin-top: 20px;
+  padding: 15px 30px;
+  font-size: 1.2rem;
 }
 
 /* Loading Animation */
@@ -424,12 +495,15 @@
 }
 
 .players-list li {
-  padding: 5px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 8px 0;
+  margin-bottom: 5px;
+  border-radius: 4px;
+  padding-left: 10px;
+  border-left: 3px solid rgba(255, 255, 255, 0.3);
 }
 
 .players-list li:last-child {
-  border-bottom: none;
+  margin-bottom: 0;
 }
 
 /* Responsive Design */
@@ -439,9 +513,13 @@
     gap: 10px;
   }
   
+  .game-board-hard {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  
   .game-info {
     flex-direction: column;
-    gap: 15px;
+    gap: 20px;
   }
   
   .home-features {
@@ -453,10 +531,14 @@
     width: 100%;
     max-width: 100%;
   }
+  
+  .button-group {
+    justify-content: center;
+  }
 }
 
 @media (max-width: 480px) {
-  .game-board {
+  .game-board, .game-board-easy, .game-board-hard {
     grid-template-columns: repeat(2, 1fr);
   }
   
@@ -478,5 +560,9 @@
   
   .home-container h1 {
     font-size: 2rem;
+  }
+  
+  .game-stats {
+    justify-content: center;
   }
 }
