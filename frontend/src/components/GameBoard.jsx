@@ -32,7 +32,7 @@ const GameBoard = () => {
   
   const navigate = useNavigate();
   const timerRef = useRef(null);
-  const socketRef = useRef();
+  const socketRef = useRef(null);
   const audioRef = useRef({});
 
   useEffect(() => {
@@ -41,6 +41,8 @@ const GameBoard = () => {
       if (user) {
         setUsername(user.username);
         setTotalPoints(user.points || 0);
+        // Inicializar o socket ao carregar o componente
+        initializeSocket();
       } else {
         navigate('/login');
       }
@@ -86,34 +88,37 @@ const GameBoard = () => {
   };
 
   const initializeSocket = () => {
-    const serverUrl = 'http://localhost:5000';
+    if (socketRef.current) {
+      // Socket já inicializado
+      return;
+    }
+
+    console.log("Inicializando socket...");
+    const serverUrl = 'http://localhost:3001'; // Ajustado para a porta correta do backend
     socketRef.current = io(serverUrl);
     
     socketRef.current.on('connect', () => {
-      console.log('Connected to server');
+      console.log('Conectado ao servidor. Socket ID:', socketRef.current.id);
     });
 
     socketRef.current.on('roomCreated', (data) => {
+      console.log('Sala criada, aguardando jogadores:', data);
       setRoomId(data.roomId);
       setIsWaitingForPlayer(true);
       setIsMatchmaking(false);
-      console.log('Room created, waiting for players to join:', data.roomId);
     });
 
     socketRef.current.on('playerJoined', (data) => {
-      console.log('Player joined:', data);
+      console.log('Jogador entrou:', data);
       setPlayers(data.players);
-      setCurrentPlayer(data.currentPlayer);
-      setIsYourTurn(data.currentPlayer === socketRef.current.id);
       
       if (data.players.length === 2) {
         setIsWaitingForPlayer(false);
-        initializeGame(theme, difficulty);
       }
     });
 
     socketRef.current.on('gameStarted', (data) => {
-      console.log('Game started:', data);
+      console.log('Jogo iniciado:', data);
       setCards(data.cards);
       setIsGameStarted(true);
       setCurrentPlayer(data.currentPlayer);
@@ -129,85 +134,150 @@ const GameBoard = () => {
     });
 
     socketRef.current.on('matchFound', (data) => {
-      setMatchedPairs(data.matchedPairs);
-      setPlayers(data.players);
+      console.log('Par encontrado:', data);
+      // Atualizar o estado do jogo com o novo par encontrado
+      const cardValue = data.cardValue;
+      setMatchedPairs(prev => [...prev, cardValue]);
+      
+      // Atualizar pontuação dos jogadores
+      const players = data.players || [];
+      if (players.length > 0) {
+        setPlayers(players);
+      }
+      
+      playSound('match');
     });
 
-    socketRef.current.on('turnChanged', (data) => {
-      setCurrentPlayer(data.currentPlayer);
-      setIsYourTurn(data.currentPlayer === socketRef.current.id);
+    socketRef.current.on('noMatchFound', (data) => {
+      console.log('Sem match:', data);
+      // Resetar as cartas viradas após um delay
+      setTimeout(() => {
+        setFlippedIndexes([]);
+      }, 1000);
+      
+      playSound('error');
+    });
+
+    socketRef.current.on('turnComplete', (data) => {
+      console.log('Turno completo, próximo jogador:', data);
+      setCurrentPlayer(data.nextPlayer);
+      setIsYourTurn(data.nextPlayer === socketRef.current.id);
       setFlippedIndexes([]);
     });
 
+    socketRef.current.on('yourTurn', () => {
+      console.log('É a sua vez de jogar!');
+      setIsYourTurn(true);
+    });
+
+    socketRef.current.on('waitTurn', () => {
+      console.log('Aguarde seu turno...');
+      setIsYourTurn(false);
+    });
+
+    socketRef.current.on('updateScore', (data) => {
+      console.log('Atualização de pontuação:', data);
+      setPlayers(data.players);
+    });
+
     socketRef.current.on('gameOver', (data) => {
+      console.log('Fim de jogo:', data);
       setIsGameOver(true);
-      setGameResults(data.results);
-      const currentPlayerResult = data.results.find(result => 
+      
+      // Formatar os resultados para exibição
+      const results = data.players.map(player => ({
+        id: player.id,
+        username: player.name,
+        score: player.score,
+        isWinner: player.winner
+      }));
+      
+      setGameResults(results);
+      
+      // Encontrar o próprio jogador nos resultados
+      const currentPlayerResult = results.find(result => 
         result.id === socketRef.current.id
       );
       
-      setFinalScore(currentPlayerResult?.score || 0);
-      setPointsEarned(currentPlayerResult?.pointsEarned || 0);
-      
-      // Update total points
-      if (currentPlayerResult?.pointsEarned) {
-        setTotalPoints(prev => prev + currentPlayerResult.pointsEarned);
+      if (currentPlayerResult) {
+        setFinalScore(currentPlayerResult.score || 0);
         
-        // Update in local storage
+        // Calcular pontos ganhos baseado na pontuação e se é o vencedor
+        const pointsEarned = currentPlayerResult.isWinner ? 
+          currentPlayerResult.score + 20 : 
+          Math.floor(currentPlayerResult.score / 2);
+        
+        setPointsEarned(pointsEarned);
+        
+        // Atualizar pontuação total
+        setTotalPoints(prev => prev + pointsEarned);
+        
+        // Atualizar no localStorage
         const user = AuthService.getCurrentUser();
         if (user) {
-          user.points = (user.points || 0) + currentPlayerResult.pointsEarned;
+          user.points = (user.points || 0) + pointsEarned;
           localStorage.setItem('user', JSON.stringify(user));
         }
       }
+      
       playSound('win');
     });
 
     socketRef.current.on('playerLeft', (data) => {
+      console.log('Jogador saiu:', data);
       setPlayerLeft(true);
-      console.log('Player left the game:', data);
       setPlayers(data.players);
       
-      // If it's a victory by default
-      if (data.gameOver) {
+      // Se a saída resultou em fim de jogo por W.O.
+      if (data.winnerByDefault) {
+        const results = data.players.map(player => ({
+          id: player.id,
+          username: player.name,
+          score: player.score,
+          isWinner: player.winner
+        }));
+        
+        setGameResults(results);
         setIsGameOver(true);
-        setGameResults(data.results);
-        const currentPlayerResult = data.results.find(result => 
+        
+        const currentPlayerResult = results.find(result => 
           result.id === socketRef.current.id
         );
         
-        setFinalScore(currentPlayerResult?.score || 0);
-        setPointsEarned(currentPlayerResult?.pointsEarned || 0);
-        
-        // Update total points
-        if (currentPlayerResult?.pointsEarned) {
-          setTotalPoints(prev => prev + currentPlayerResult.pointsEarned);
+        if (currentPlayerResult) {
+          setFinalScore(currentPlayerResult.score || 0);
+          setPointsEarned(50); // Pontos por W.O.
+          setTotalPoints(prev => prev + 50);
           
-          // Update in local storage
+          // Atualizar no localStorage
           const user = AuthService.getCurrentUser();
           if (user) {
-            user.points = (user.points || 0) + currentPlayerResult.pointsEarned;
+            user.points = (user.points || 0) + 50;
             localStorage.setItem('user', JSON.stringify(user));
           }
         }
       }
     });
 
-    socketRef.current.on('matchmakingSuccess', (data) => {
+    socketRef.current.on('matchFound', (data) => {
+      console.log("Match encontrado:", data);
       setRoomId(data.roomId);
       setIsMatchmaking(false);
       setPlayers(data.players);
-      setCurrentPlayer(data.currentPlayer);
-      setIsYourTurn(data.currentPlayer === socketRef.current.id);
-      initializeGame(theme, difficulty);
     });
 
-    socketRef.current.on('disconnect', () => {
-      console.log('Disconnected from server');
+    socketRef.current.on('enterMatchmaking', () => {
+      console.log('Entrou na fila de matchmaking');
+      setIsMatchmaking(true);
     });
 
     socketRef.current.on('error', (error) => {
-      console.error('Socket error:', error);
+      console.error('Erro do socket:', error);
+      alert(`Erro: ${error.message}`);
+    });
+
+    socketRef.current.on('disconnect', () => {
+      console.log('Desconectado do servidor');
     });
   };
 
@@ -219,8 +289,11 @@ const GameBoard = () => {
         initializeSocket();
       }
       
-      setIsMatchmaking(true);
-      socketRef.current.emit('findGame', { username });
+      socketRef.current.emit('enterMatchmaking', { 
+        playerName: username,
+        difficulty: difficulty,
+        theme: theme
+      });
     } else {
       initializeGame(theme, difficulty);
       setIsGameStarted(true);
@@ -229,13 +302,20 @@ const GameBoard = () => {
   };
 
   const joinRoom = () => {
-    if (!roomId.trim()) return;
+    if (!roomId.trim()) {
+      alert("Digite o código da sala");
+      return;
+    }
     
     if (!socketRef.current) {
       initializeSocket();
     }
     
-    socketRef.current.emit('joinRoom', { roomId, username });
+    console.log("Entrando na sala:", roomId, "como", username);
+    socketRef.current.emit('joinRoom', { 
+      roomId: roomId.trim().toUpperCase(), 
+      playerName: username 
+    });
   };
 
   const createRoom = () => {
@@ -243,7 +323,12 @@ const GameBoard = () => {
       initializeSocket();
     }
     
-    socketRef.current.emit('createRoom', { username });
+    console.log("Criando sala como", username, "com tema", theme, "e dificuldade", difficulty);
+    socketRef.current.emit('createRoom', { 
+      playerName: username,
+      difficulty: difficulty,
+      theme: theme
+    });
   };
 
   const initializeGame = (selectedTheme, selectedDifficulty) => {
@@ -311,7 +396,12 @@ const GameBoard = () => {
     
     // Emit the card flip event in multiplayer mode
     if (isMultiplayer && socketRef.current) {
-      socketRef.current.emit('flipCard', { roomId, cardIndex: index });
+      socketRef.current.emit('flipCard', { 
+        roomId, 
+        cardIndex: index, 
+        cardValue: cards[index].content,
+        playerId: socketRef.current.id
+      });
     }
     
     const newFlippedIndexes = [...flippedIndexes, index];
@@ -327,15 +417,27 @@ const GameBoard = () => {
       if (cards[firstIndex].content === cards[secondIndex].content) {
         // In multiplayer, emit the match found event
         if (isMultiplayer && socketRef.current) {
-          socketRef.current.emit('matchFound', { roomId, indices: newFlippedIndexes });
+          const newScore = score + 10;
+          setScore(newScore);
+          
+          socketRef.current.emit('matchFound', { 
+            roomId, 
+            cardValue: cards[firstIndex].content,
+            playerId: socketRef.current.id,
+            playerName: username,
+            score: newScore
+          });
+          
+          // Check if you continue your turn
+          socketRef.current.emit('continueTurn', { roomId });
         } else {
           // In single player, update the state directly
-          const newMatchedPairs = [...matchedPairs, ...newFlippedIndexes];
+          const newMatchedPairs = [...matchedPairs, cards[firstIndex].content];
           setMatchedPairs(newMatchedPairs);
           setScore(prev => prev + 10);
           
           // Check if the game is over
-          if (newMatchedPairs.length === cards.length) {
+          if (newMatchedPairs.length === cards.length / 2) {
             setIsGameOver(true);
             clearInterval(timerRef.current);
             const finalScore = Math.max(100 - (moves * 2) + (100 - Math.min(timer, 100)), 10);
@@ -348,7 +450,8 @@ const GameBoard = () => {
             // Update in local storage
             const user = AuthService.getCurrentUser();
             if (user) {
-              user.points = (user.points || 0) + finalScore;
+              const newPoints = (user.points || 0) + finalScore;
+              user.points = newPoints;
               localStorage.setItem('user', JSON.stringify(user));
             }
             
@@ -359,17 +462,20 @@ const GameBoard = () => {
         }
       } else {
         playSound('error');
-        // In multiplayer, emit the turn change event
-        if (isMultiplayer && socketRef.current) {
-          socketRef.current.emit('changeTurn', { roomId });
-        }
         
-        // Flip the cards back after a delay
-        setTimeout(() => {
-          if (!isMultiplayer) {
+        // In multiplayer, emit the end turn event
+        if (isMultiplayer && socketRef.current) {
+          socketRef.current.emit('endTurn', { 
+            roomId,
+            firstCardId: firstIndex,
+            secondCardId: secondIndex
+          });
+        } else {
+          // In single player, flip the cards back after a delay
+          setTimeout(() => {
             setFlippedIndexes([]);
-          }
-        }, 1000);
+          }, 1000);
+        }
       }
     }
   };
@@ -379,11 +485,8 @@ const GameBoard = () => {
     clearInterval(timerRef.current);
     
     if (isMultiplayer && socketRef.current) {
-      // Disconnect from the current room
-      socketRef.current.disconnect();
-      socketRef.current = null;
-      setRoomId('');
-      setPlayers([]);
+      // Sair da sala atual
+      socketRef.current.emit('leaveRoom', { roomId });
     }
     
     setIsGameOver(false);
@@ -392,17 +495,17 @@ const GameBoard = () => {
     setIsWaitingForPlayer(false);
     setIsMatchmaking(false);
     setPlayerLeft(false);
+    setRoomId('');
   };
 
   const copyRoomIdToClipboard = () => {
     navigator.clipboard.writeText(roomId);
-    // You could add a visual feedback here
     alert('Código da sala copiado!');
   };
 
   const renderCard = (card, index) => {
-    const isFlipped = flippedIndexes.includes(index) || card.isMatched || matchedPairs.includes(index);
-    const isMatched = card.isMatched || matchedPairs.includes(index);
+    const isFlipped = flippedIndexes.includes(index) || card.isMatched || matchedPairs.includes(card.content);
+    const isMatched = card.isMatched || matchedPairs.includes(card.content);
     const isPlayable = isYourTurn && !isFlipped && isMultiplayer;
     
     const cardClasses = `card ${isFlipped ? 'flipped' : ''} ${isMatched ? 'matched' : ''} ${isPlayable ? 'playable' : ''}`;
@@ -423,13 +526,13 @@ const GameBoard = () => {
     );
   };
 
-  const getPlayerName = (playerId) => {
-    const player = players.find(p => p.id === playerId);
-    return player ? player.username : 'Desconhecido';
+  const getPlayerName = () => {
+    return username || "Anônimo";
   };
 
   const getCurrentPlayerName = () => {
-    return getPlayerName(currentPlayer);
+    const player = players.find(p => p.id === currentPlayer);
+    return player ? player.name : 'Desconhecido';
   };
 
   const formatTime = (seconds) => {
@@ -452,7 +555,12 @@ const GameBoard = () => {
                 <div className="dot"></div>
                 <div className="dot"></div>
               </div>
-              <button className="button" onClick={() => setIsMatchmaking(false)}>Cancelar</button>
+              <button className="button" onClick={() => {
+                setIsMatchmaking(false);
+                if (socketRef.current) {
+                  socketRef.current.emit('cancelMatchmaking');
+                }
+              }}>Cancelar</button>
             </div>
           ) : isWaitingForPlayer ? (
             <div>
@@ -603,7 +711,7 @@ const GameBoard = () => {
                 
                 return (
                   <li key={player.id} className={`${isCurrentTurn ? 'active-player' : ''} ${isYou ? 'current-player' : ''}`}>
-                    <span>{player.username} {isYou && '(Você)'}</span>
+                    <span>{player.name} {isYou && '(Você)'}</span>
                     <span>Score: {player.score || 0}</span>
                   </li>
                 );
