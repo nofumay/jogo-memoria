@@ -34,6 +34,8 @@ const GameBoard = () => {
   const [roomId, setRoomId] = useState('');
   const [loading, setLoading] = useState(true);
   const [gameStarted, setGameStarted] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [waitingForPlayers, setWaitingForPlayers] = useState(false);
   
   // Configurações do jogo
   const [difficulty, setDifficulty] = useState('medium');
@@ -44,9 +46,52 @@ const GameBoard = () => {
   const [soundEnabled, setSoundEnabled] = useState(!soundService.getMuteState());
   const [showSettings, setShowSettings] = useState(false);
   const [gameInputRoomId, setGameInputRoomId] = useState('');
+  const [yourTurn, setYourTurn] = useState(false);
 
   // Referência ao jogador atual
   const [currentPlayer, setCurrentPlayer] = useState(null);
+
+  // Verificar status de conexão
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      toast.success("Conexão com a internet restaurada!");
+      
+      // Reconectar ao socket se estiver em uma sala
+      if (isMultiplayer && roomId) {
+        reconnectToRoom();
+      }
+    };
+    
+    const handleOffline = () => {
+      setIsOnline(false);
+      toast.error("Conexão com a internet perdida! O jogo requer conexão online.");
+      
+      // Pausar o jogo
+      if (gameStarted) {
+        stopTimer();
+      }
+    };
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [isMultiplayer, roomId, gameStarted]);
+
+  // Reconectar à sala após recuperar conexão
+  const reconnectToRoom = () => {
+    if (socket && roomId) {
+      socket.emit('reconnectToRoom', {
+        roomId,
+        playerName: getPlayerName(),
+        playerId: socket.id
+      });
+    }
+  };
 
   // Efeito para configurar o SoundService
   useEffect(() => {
@@ -59,13 +104,18 @@ const GameBoard = () => {
     const user = AuthService.getCurrentUser();
     if (user) {
       setCurrentPlayer(user);
+    } else {
+      // Redirecionar para login se não estiver autenticado
+      window.location.href = '/login';
     }
   }, []);
 
   // Inicializar jogo e conectar ao socket
   useEffect(() => {
-    // Inicia o jogo automaticamente após carregar o componente
-    initGame(true);
+    if (!isOnline) {
+      toast.error("Este jogo requer conexão com a internet para funcionar.");
+      return;
+    }
     
     // Conecta ao servidor Socket.io
     const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:3001';
@@ -75,32 +125,68 @@ const GameBoard = () => {
     // Ouvintes de eventos do socket
     newSocket.on('connect', () => {
       console.log('Conectado ao servidor!');
+      toast.success("Conectado ao servidor de jogo!");
+    });
+
+    newSocket.on('connect_error', () => {
+      toast.error("Erro ao conectar ao servidor de jogo. Verifique sua conexão.");
+      setIsOnline(false);
     });
 
     newSocket.on('roomCreated', (data) => {
       setRoomId(data.roomId);
       setGameInputRoomId(data.roomId);
+      setWaitingForPlayers(true);
       toast.success(`Sala criada: ${data.roomId}`);
+      soundService.play('start');
     });
 
     newSocket.on('playerJoined', (data) => {
       setPlayers(data.players);
       toast.info(`${data.playerName} entrou na sala!`);
       soundService.play('opponent_move');
+      setWaitingForPlayers(data.players.length < 2);
     });
 
     newSocket.on('playerLeft', (data) => {
       setPlayers(data.players);
       toast.info(`${data.playerName} saiu da sala!`);
+      
+      // Se não houver jogadores suficientes, pausar o jogo
+      if (data.players.length < 2 && gameStarted) {
+        toast.warning("Aguardando mais jogadores para continuar...");
+        setWaitingForPlayers(true);
+      }
     });
 
     newSocket.on('gameStarted', (data) => {
       setCards(data.cards);
       setGameStarted(true);
       setLoading(false);
+      setWaitingForPlayers(false);
       toast.success('O jogo começou!');
       soundService.play('start');
       startTimer();
+      
+      // Definir de quem é a vez
+      if (data.currentPlayer === newSocket.id) {
+        setYourTurn(true);
+        toast.info("É a sua vez de jogar!");
+      } else {
+        setYourTurn(false);
+        toast.info("Aguarde sua vez...");
+      }
+    });
+
+    newSocket.on('yourTurn', () => {
+      setYourTurn(true);
+      toast.info("É a sua vez de jogar!");
+      soundService.play('start');
+    });
+
+    newSocket.on('waitTurn', () => {
+      setYourTurn(false);
+      toast.info("Aguarde sua vez...");
     });
 
     newSocket.on('cardFlipped', (data) => {
@@ -110,8 +196,50 @@ const GameBoard = () => {
       }
     });
 
+    newSocket.on('turnComplete', (data) => {
+      // O servidor informa que o turno de alguém foi concluído
+      if (data.nextPlayer === newSocket.id) {
+        setYourTurn(true);
+        toast.info("É a sua vez de jogar!");
+      } else {
+        setYourTurn(false);
+      }
+    });
+
     newSocket.on('updateScore', (data) => {
       setPlayers(data.players);
+    });
+
+    newSocket.on('matchFound', (data) => {
+      // Adicionar o par encontrado
+      setMatchedPairs(prev => [...prev, data.cardValue]);
+      
+      if (data.playerId === newSocket.id) {
+        soundService.play('match');
+        toast.success("Você encontrou um par!");
+        setScore(prev => prev + 10);
+      } else {
+        soundService.play('opponent_move');
+        toast.info(`${data.playerName} encontrou um par!`);
+      }
+    });
+
+    newSocket.on('noMatchFound', (data) => {
+      if (data.playerId !== newSocket.id) {
+        soundService.play('error');
+        
+        // Virar as cartas de volta após um delay
+        setTimeout(() => {
+          setCards(prev => 
+            prev.map(card => {
+              if (card.id === data.firstCardId || card.id === data.secondCardId) {
+                return { ...card, isFlipped: false };
+              }
+              return card;
+            })
+          );
+        }, DIFFICULTY_LEVELS[difficulty].flipDelay);
+      }
     });
 
     newSocket.on('gameOver', (data) => {
@@ -121,13 +249,39 @@ const GameBoard = () => {
       toast.success(`Jogo finalizado! Vencedor: ${data.winner}`);
     });
 
+    newSocket.on('reconnected', (data) => {
+      // Atualizar o estado do jogo após reconexão
+      setCards(data.gameState.cards);
+      setMatchedPairs(data.gameState.matchedPairs);
+      setPlayers(data.gameState.players);
+      setGameStarted(data.gameState.gameStarted);
+      setYourTurn(data.gameState.currentPlayer === newSocket.id);
+      setLoading(false);
+      
+      toast.success("Reconectado à sala com sucesso!");
+    });
+
+    // Verificar se tem jogos acontecendo
+    newSocket.on('availableRooms', (data) => {
+      if (data.rooms.length > 0) {
+        toast.info(`Existem ${data.rooms.length} salas disponíveis para entrar!`);
+      }
+    });
+
+    // Inicialmente, verifique se há salas disponíveis
+    setTimeout(() => {
+      if (newSocket.connected) {
+        newSocket.emit('getRooms');
+      }
+    }, 2000);
+
     return () => {
       if (newSocket) {
         newSocket.disconnect();
       }
       clearInterval(timerInterval);
     };
-  }, []);
+  }, [isOnline]);
 
   // Iniciar timer
   const startTimer = () => {
@@ -158,6 +312,11 @@ const GameBoard = () => {
 
   // Inicializar o jogo
   const initGame = useCallback((autoStart = false) => {
+    if (!isOnline) {
+      toast.error("Este jogo requer conexão com a internet para funcionar.");
+      return;
+    }
+    
     setLoading(true);
     setGameStarted(autoStart);
     setMoves(0);
@@ -188,27 +347,35 @@ const GameBoard = () => {
     if (autoStart) {
       startTimer();
     }
-  }, [difficulty, timerEnabled]);
-
-  // Efeito para reiniciar o jogo quando a dificuldade muda
-  useEffect(() => {
-    if (!isMultiplayer) {
-      initGame();
-    }
-  }, [difficulty, initGame, isMultiplayer]);
+  }, [difficulty, timerEnabled, isOnline]);
 
   // Criar uma sala multijogador
   const createRoom = () => {
+    if (!isOnline) {
+      toast.error("Este jogo requer conexão com a internet para funcionar.");
+      return;
+    }
+    
     if (socket) {
-      socket.emit('createRoom', { playerName: getPlayerName() });
+      socket.emit('createRoom', { 
+        playerName: getPlayerName(),
+        difficulty,
+        theme
+      });
       setIsMultiplayer(true);
       setLoading(true);
       setShowSettings(false);
+      setWaitingForPlayers(true);
     }
   };
 
   // Entrar em uma sala
   const joinRoom = (roomToJoin) => {
+    if (!isOnline) {
+      toast.error("Este jogo requer conexão com a internet para funcionar.");
+      return;
+    }
+    
     if (socket && roomToJoin) {
       socket.emit('joinRoom', {
         roomId: roomToJoin,
@@ -218,11 +385,17 @@ const GameBoard = () => {
       setIsMultiplayer(true);
       setLoading(true);
       setShowSettings(false);
+      setWaitingForPlayers(true);
     }
   };
 
   // Iniciar o jogo multijogador
   const startMultiplayerGame = () => {
+    if (!isOnline) {
+      toast.error("Este jogo requer conexão com a internet para funcionar.");
+      return;
+    }
+    
     if (socket && roomId) {
       socket.emit('startGame', { 
         roomId,
@@ -239,14 +412,21 @@ const GameBoard = () => {
 
   // Lidar com clique na carta
   const handleCardClick = (id) => {
-    // Não permitir cliques se o jogo acabou, ou se já há 2 cartas viradas
-    if (gameOver || flippedCards.length >= 2) {
+    // Verificar se está online
+    if (!isOnline) {
+      toast.error("Este jogo requer conexão com a internet para funcionar.");
       return;
     }
-
-    // Se o jogo não foi iniciado, inicie-o
-    if (!gameStarted && !isMultiplayer) {
-      startGame();
+    
+    // Verificar se é a vez do jogador em modo multiplayer
+    if (isMultiplayer && !yourTurn) {
+      toast.warning("Aguarde sua vez para jogar!");
+      return;
+    }
+    
+    // Não permitir cliques se o jogo acabou, ou se já há 2 cartas viradas
+    if (gameOver || flippedCards.length >= 2 || waitingForPlayers) {
+      return;
     }
 
     // Encontrar a carta clicada
@@ -281,6 +461,7 @@ const GameBoard = () => {
       socket.emit('flipCard', {
         roomId,
         cardIndex: id,
+        cardValue: clickedCard.value,
         playerId: socket.id
       });
     }
@@ -300,9 +481,11 @@ const GameBoard = () => {
 
         // Enviar atualização de pontuação no modo multijogador
         if (isMultiplayer && socket) {
-          socket.emit('updateScore', {
+          socket.emit('matchFound', {
             roomId,
             playerId: socket.id,
+            playerName: getPlayerName(),
+            cardValue: firstCard.value,
             score: score + 10
           });
         }
@@ -322,9 +505,13 @@ const GameBoard = () => {
             socket.emit('gameOver', {
               roomId,
               playerId: socket.id,
-              playerName: getPlayerName()
+              playerName: getPlayerName(),
+              score: score + 10
             });
           }
+        } else if (isMultiplayer) {
+          // Se não acabou, continue com o turno do jogador já que acertou
+          socket.emit('continueTurn', { roomId });
         }
       } else {
         // Sem match, virar as cartas de volta após um delay
@@ -343,17 +530,19 @@ const GameBoard = () => {
             })
           );
           setFlippedCards([]);
+          
+          // Passar a vez para o próximo jogador em modo multiplayer
+          if (isMultiplayer && socket) {
+            socket.emit('endTurn', {
+              roomId,
+              firstCardId: firstCard.id,
+              secondCardId: secondCard.id
+            });
+            setYourTurn(false);
+          }
         }, flipDelay);
       }
     }
-  };
-
-  // Iniciar o jogo single player
-  const startGame = () => {
-    setGameStarted(true);
-    startTimer();
-    setShowSettings(false);
-    soundService.play('start');
   };
 
   // Lidar com cartas viradas pelo oponente
@@ -378,6 +567,7 @@ const GameBoard = () => {
       setRoomId('');
       setGameInputRoomId('');
       setPlayers([]);
+      setWaitingForPlayers(false);
     }
     soundService.play('restart');
     initGame();
@@ -407,6 +597,27 @@ const GameBoard = () => {
     soundService.setVolume(value);
   };
 
+  // Procurar salas disponíveis
+  const findRooms = () => {
+    if (socket) {
+      socket.emit('getRooms');
+    }
+  };
+
+  // Se não estiver online, mostrar mensagem de erro
+  if (!isOnline) {
+    return (
+      <div className="offline-message">
+        <h2>Conexão Offline</h2>
+        <p>Este jogo requer uma conexão com a internet para funcionar.</p>
+        <p>Por favor, verifique sua conexão e tente novamente.</p>
+        <button className="button" onClick={() => window.location.reload()}>
+          Tentar Novamente
+        </button>
+      </div>
+    );
+  }
+
   // Renderizar o tabuleiro de jogo
   return (
     <div className="game-container">
@@ -417,6 +628,9 @@ const GameBoard = () => {
             <p>Pontuação: {score}</p>
             <p>Movimentos: {moves}</p>
             {timerEnabled && <p>Tempo: {formatTime(timer)}</p>}
+            {isMultiplayer && yourTurn && (
+              <p className="your-turn-indicator">Sua vez!</p>
+            )}
             <button className="settings-button" onClick={toggleSettings}>
               {showSettings ? 'Fechar Configurações' : 'Configurações'}
             </button>
@@ -443,8 +657,8 @@ const GameBoard = () => {
         {isMultiplayer && (
           <div className="game-controls">
             <div className="room-info">
-              <p>Sala: {roomId}</p>
-              <p>Jogadores: {players.length}</p>
+              <p>Sala: <span className="room-code">{roomId}</span></p>
+              <p>Jogadores: {players.length}/2</p>
             </div>
             
             {players.length > 0 && (
@@ -452,8 +666,9 @@ const GameBoard = () => {
                 <h3>Jogadores:</h3>
                 <ul>
                   {players.map((player, index) => (
-                    <li key={index}>
-                      {player.name}: {player.score} pontos
+                    <li key={index} className={player.active ? 'active-player' : ''}>
+                      {player.name === getPlayerName() ? `Você (${player.name})` : player.name}: {player.score} pontos
+                      {player.isCurrentPlayer && <span className="current-player-indicator"> ⭐</span>}
                     </li>
                   ))}
                 </ul>
@@ -464,9 +679,9 @@ const GameBoard = () => {
               <button 
                 className="button"
                 onClick={startMultiplayerGame}
-                disabled={players.length < 1}
+                disabled={players.length < 2}
               >
-                Iniciar Jogo
+                {players.length < 2 ? 'Aguardando jogadores...' : 'Iniciar Jogo'}
               </button>
             )}
             
@@ -481,21 +696,23 @@ const GameBoard = () => {
       </div>
 
       {loading ? (
-        <div className="loading">Carregando...</div>
+        <div className="loading">Carregando o jogo...</div>
       ) : (
         <>
           {!isMultiplayer && !gameStarted && (
             <div className="game-start-overlay">
-              <h3>Clique em uma carta para começar</h3>
-              <p>Ou use as configurações para ajustar o jogo antes de iniciar</p>
+              <h3>Bem-vindo ao Jogo da Memória Multiplayer</h3>
+              <p>Jogue online contra outros jogadores ou crie sua própria sala!</p>
+              
               <div className="button-group">
-                <button className="button" onClick={startGame}>Iniciar Jogo</button>
                 <button className="button" onClick={createRoom}>Criar Sala Multiplayer</button>
+                <button className="button" onClick={findRooms}>Buscar Salas</button>
               </div>
+              
               <div className="join-room">
                 <input 
                   type="text" 
-                  placeholder="ID da Sala"
+                  placeholder="Digite o código da sala"
                   onChange={(e) => setGameInputRoomId(e.target.value)}
                   value={gameInputRoomId}
                 />
@@ -506,6 +723,37 @@ const GameBoard = () => {
                 >
                   Entrar na Sala
                 </button>
+              </div>
+              
+              <p className="online-note">
+                Este jogo funciona exclusivamente online.
+                <br />
+                Jogadores conectados: {socket ? 'Online ✅' : 'Offline ❌'}
+              </p>
+            </div>
+          )}
+          
+          {waitingForPlayers && isMultiplayer && (
+            <div className="waiting-overlay">
+              <h3>Aguardando Jogadores</h3>
+              <p>Compartilhe este código com um amigo:</p>
+              <div className="room-code-display">
+                {roomId}
+                <button 
+                  className="copy-button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(roomId);
+                    toast.info("Código da sala copiado!");
+                  }}
+                >
+                  Copiar
+                </button>
+              </div>
+              <p>Jogadores: {players.length}/2</p>
+              <div className="waiting-animation">
+                <div className="dot"></div>
+                <div className="dot"></div>
+                <div className="dot"></div>
               </div>
             </div>
           )}
@@ -520,6 +768,7 @@ const GameBoard = () => {
                 isMatched={matchedPairs.includes(card.value)}
                 onClick={() => handleCardClick(card.id)}
                 theme={theme}
+                disabled={isMultiplayer && !yourTurn}
               />
             ))}
           </div>
@@ -529,15 +778,39 @@ const GameBoard = () => {
       {gameOver && (
         <div className="game-over">
           <h2>Jogo Finalizado!</h2>
-          <p>Sua pontuação: {score}</p>
-          <p>Movimentos: {moves}</p>
-          {timerEnabled && <p>Tempo: {formatTime(timer)}</p>}
-          <button 
-            className="button"
-            onClick={resetGame}
-          >
-            Jogar Novamente
-          </button>
+          {isMultiplayer ? (
+            <>
+              <h3>Placar Final:</h3>
+              <ul className="final-score-list">
+                {players.map((player, index) => (
+                  <li key={index} className={player.winner ? 'winner' : ''}>
+                    {player.name}: {player.score} pontos
+                    {player.winner && <span className="winner-badge">🏆 Vencedor</span>}
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <>
+              <p>Sua pontuação: {score}</p>
+              <p>Movimentos: {moves}</p>
+              {timerEnabled && <p>Tempo: {formatTime(timer)}</p>}
+            </>
+          )}
+          <div className="game-over-buttons">
+            <button 
+              className="button"
+              onClick={resetGame}
+            >
+              Jogar Novamente
+            </button>
+            <button 
+              className="button"
+              onClick={createRoom}
+            >
+              Nova Sala Multiplayer
+            </button>
+          </div>
         </div>
       )}
     </div>
