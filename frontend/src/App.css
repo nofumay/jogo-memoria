@@ -243,6 +243,124 @@ input:checked + .toggle-slider:before {
   transform: translateY(-2px);
 }
 
+/* Leaderboard Styles */
+.leaderboard {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 25px;
+  margin: 30px 0;
+  backdrop-filter: blur(5px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
+}
+
+.leaderboard h2 {
+  text-align: center;
+  margin-top: 0;
+  margin-bottom: 25px;
+  color: white;
+  font-size: 1.8rem;
+}
+
+.leaderboard-filters {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 25px;
+}
+
+.leaderboard-filters .button {
+  padding: 8px 16px;
+  border-radius: 20px;
+}
+
+.leaderboard-table-container {
+  overflow-x: auto;
+  margin-bottom: 20px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.leaderboard-table {
+  width: 100%;
+  min-width: 650px;
+  border-collapse: collapse;
+  color: white;
+}
+
+.leaderboard-table th,
+.leaderboard-table td {
+  padding: 12px 15px;
+  text-align: center;
+}
+
+.leaderboard-table th {
+  background-color: rgba(0, 0, 0, 0.3);
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+}
+
+.leaderboard-table tbody tr {
+  transition: background-color 0.3s ease;
+}
+
+.leaderboard-table tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.leaderboard-table tbody tr.top-1 {
+  background-color: rgba(255, 215, 0, 0.2);
+}
+
+.leaderboard-table tbody tr.top-2 {
+  background-color: rgba(192, 192, 192, 0.2);
+}
+
+.leaderboard-table tbody tr.top-3 {
+  background-color: rgba(205, 127, 50, 0.2);
+}
+
+.difficulty-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.difficulty-badge.easy {
+  background-color: rgba(76, 175, 80, 0.3);
+}
+
+.difficulty-badge.medium {
+  background-color: rgba(33, 150, 243, 0.3);
+}
+
+.difficulty-badge.hard {
+  background-color: rgba(244, 67, 54, 0.3);
+}
+
+.leaderboard-table td.no-data {
+  padding: 30px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.leaderboard-info {
+  text-align: center;
+  margin-top: 20px;
+  padding: 15px;
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+}
+
+.leaderboard-info p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.9rem;
+}
+
 /* Difficulty and Theme Selectors */
 .difficulty-selector,
 .theme-selector {
@@ -803,6 +921,15 @@ input:checked + .toggle-slider:before {
   .settings-section {
     grid-template-columns: 1fr;
   }
+  
+  .leaderboard-table {
+    font-size: 0.9rem;
+  }
+  
+  .leaderboard-table th,
+  .leaderboard-table td {
+    padding: 8px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -833,5 +960,23 @@ input:checked + .toggle-slider:before {
   .button {
     padding: 10px 20px;
     margin: 5px;
+  }
+  
+  .leaderboard {
+    padding: 15px;
+  }
+  
+  .leaderboard-table {
+    font-size: 0.8rem;
+  }
+  
+  .leaderboard-table th,
+  .leaderboard-table td {
+    padding: 6px 4px;
+  }
+  
+  .difficulty-badge {
+    padding: 3px 6px;
+    font-size: 0.7rem;
   }
 }
