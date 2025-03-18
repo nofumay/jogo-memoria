@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-toastify';
 import io from 'socket.io-client';
 import Card from './Card';
+import GameSettings from './GameSettings';
+import AuthService from '../services/AuthService';
 
 // Configurações do jogo
 const DIFFICULTY_LEVELS = {
@@ -10,7 +12,12 @@ const DIFFICULTY_LEVELS = {
   hard: { pairs: 12, flipDelay: 800 }
 };
 
-const THEMES = ['animals', 'fruits', 'emojis', 'sports'];
+const THEMES = [
+  { name: 'animals', label: 'Animais' },
+  { name: 'fruits', label: 'Frutas' },
+  { name: 'emojis', label: 'Emojis' },
+  { name: 'sports', label: 'Esportes' }
+];
 
 const GameBoard = () => {
   // Estados do jogo
@@ -32,9 +39,26 @@ const GameBoard = () => {
   const [theme, setTheme] = useState('animals');
   const [timer, setTimer] = useState(0);
   const [timerInterval, setTimerInterval] = useState(null);
+  const [timerEnabled, setTimerEnabled] = useState(true);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [showSettings, setShowSettings] = useState(false);
+
+  // Referência ao jogador atual
+  const [currentPlayer, setCurrentPlayer] = useState(null);
+
+  // Efeito para carregar o jogador atual
+  useEffect(() => {
+    const user = AuthService.getCurrentUser();
+    if (user) {
+      setCurrentPlayer(user);
+    }
+  }, []);
 
   // Inicializar jogo e conectar ao socket
   useEffect(() => {
+    // Inicia o jogo automaticamente após carregar o componente
+    initGame(true);
+    
     // Conecta ao servidor Socket.io
     const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:3001';
     const newSocket = io(SOCKET_URL);
@@ -85,9 +109,6 @@ const GameBoard = () => {
       toast.success(`Jogo finalizado! Vencedor: ${data.winner}`);
     });
 
-    // Inicializar o jogo solo por padrão
-    initGame();
-
     return () => {
       if (newSocket) {
         newSocket.disconnect();
@@ -96,8 +117,23 @@ const GameBoard = () => {
     };
   }, []);
 
+  // Reproduzir som
+  const playSound = (soundName) => {
+    if (!soundEnabled) return;
+    
+    try {
+      const audio = new Audio(`/sounds/${soundName}.mp3`);
+      audio.volume = 0.5;
+      audio.play().catch(error => console.error("Erro ao reproduzir som:", error));
+    } catch (error) {
+      console.error("Erro ao criar objeto de áudio:", error);
+    }
+  };
+
   // Iniciar timer
   const startTimer = () => {
+    if (!timerEnabled) return;
+    
     stopTimer();
     setTimer(0);
     const interval = setInterval(() => {
@@ -122,11 +158,13 @@ const GameBoard = () => {
   };
 
   // Inicializar o jogo
-  const initGame = useCallback(() => {
+  const initGame = useCallback((autoStart = false) => {
     setLoading(true);
-    setGameStarted(false);
+    setGameStarted(autoStart);
     setMoves(0);
-    stopTimer();
+    if (!autoStart) {
+      stopTimer();
+    }
     
     const { pairs } = DIFFICULTY_LEVELS[difficulty];
     
@@ -147,7 +185,11 @@ const GameBoard = () => {
     setScore(0);
     setGameOver(false);
     setLoading(false);
-  }, [difficulty]);
+    
+    if (autoStart) {
+      startTimer();
+    }
+  }, [difficulty, timerEnabled]);
 
   // Efeito para reiniciar o jogo quando a dificuldade muda
   useEffect(() => {
@@ -162,6 +204,7 @@ const GameBoard = () => {
       socket.emit('createRoom', { playerName: getPlayerName() });
       setIsMultiplayer(true);
       setLoading(true);
+      setShowSettings(false);
     }
   };
 
@@ -175,6 +218,7 @@ const GameBoard = () => {
       setRoomId(roomToJoin);
       setIsMultiplayer(true);
       setLoading(true);
+      setShowSettings(false);
     }
   };
 
@@ -191,20 +235,19 @@ const GameBoard = () => {
 
   // Obter o nome do jogador do localStorage
   const getPlayerName = () => {
-    const user = JSON.parse(localStorage.getItem('user'));
-    return user?.username || 'Jogador';
+    return currentPlayer?.username || 'Jogador';
   };
 
   // Lidar com clique na carta
   const handleCardClick = (id) => {
-    // Não permitir cliques se o jogo não começou, acabou, ou se já há 2 cartas viradas
-    if (!gameStarted && !isMultiplayer) {
-      startGame();
-      return;
-    }
-    
+    // Não permitir cliques se o jogo acabou, ou se já há 2 cartas viradas
     if (gameOver || flippedCards.length >= 2) {
       return;
+    }
+
+    // Se o jogo não foi iniciado, inicie-o
+    if (!gameStarted && !isMultiplayer) {
+      startGame();
     }
 
     // Encontrar a carta clicada
@@ -214,6 +257,9 @@ const GameBoard = () => {
     if (clickedCard.isFlipped || matchedPairs.includes(clickedCard.value)) {
       return;
     }
+
+    // Reproduzir som de clique
+    playSound('flip');
 
     // Adicionar a carta ao estado de cartas viradas
     const newFlippedCards = [...flippedCards, clickedCard];
@@ -250,6 +296,9 @@ const GameBoard = () => {
         setScore(prevScore => prevScore + 10);
         setFlippedCards([]);
 
+        // Reproduzir som de match
+        playSound('match');
+
         // Enviar atualização de pontuação no modo multijogador
         if (isMultiplayer && socket) {
           socket.emit('updateScore', {
@@ -264,6 +313,10 @@ const GameBoard = () => {
         if (matchedPairs.length + 1 === pairs) {
           setGameOver(true);
           stopTimer();
+          
+          // Reproduzir som de vitória
+          playSound('win');
+          
           toast.success('Parabéns! Você completou o jogo!');
 
           if (isMultiplayer && socket) {
@@ -277,6 +330,10 @@ const GameBoard = () => {
       } else {
         // Sem match, virar as cartas de volta após um delay
         const { flipDelay } = DIFFICULTY_LEVELS[difficulty];
+        
+        // Reproduzir som de erro
+        playSound('error');
+        
         setTimeout(() => {
           setCards(
             cards.map(card => {
@@ -296,6 +353,8 @@ const GameBoard = () => {
   const startGame = () => {
     setGameStarted(true);
     startTimer();
+    setShowSettings(false);
+    playSound('start');
   };
 
   // Lidar com cartas viradas pelo oponente
@@ -306,11 +365,12 @@ const GameBoard = () => {
     if (card) {
       card.isFlipped = true;
       setCards(newCards);
+      playSound('opponent_move');
     }
   };
 
   // Reiniciar o jogo
-  const restartGame = () => {
+  const resetGame = () => {
     if (isMultiplayer) {
       if (socket) {
         socket.emit('leaveRoom', { roomId });
@@ -319,25 +379,8 @@ const GameBoard = () => {
       setRoomId('');
       setPlayers([]);
     }
+    playSound('restart');
     initGame();
-  };
-
-  // Mudar o nível de dificuldade
-  const changeDifficulty = (newDifficulty) => {
-    if (difficulty !== newDifficulty && !gameStarted) {
-      setDifficulty(newDifficulty);
-    } else if (gameStarted) {
-      toast.info('Não é possível alterar a dificuldade durante o jogo');
-    }
-  };
-
-  // Mudar o tema
-  const changeTheme = (newTheme) => {
-    if (theme !== newTheme && !gameStarted) {
-      setTheme(newTheme);
-    } else if (gameStarted) {
-      toast.info('Não é possível alterar o tema durante o jogo');
-    }
   };
 
   // Renderizar o grid de cards baseado na dificuldade
@@ -346,6 +389,11 @@ const GameBoard = () => {
     if (pairs === 6) return 'game-board game-board-easy';
     if (pairs === 12) return 'game-board game-board-hard';
     return 'game-board';
+  };
+
+  // Alternar visualização das configurações
+  const toggleSettings = () => {
+    setShowSettings(!showSettings);
   };
 
   // Renderizar o tabuleiro de jogo
@@ -357,63 +405,80 @@ const GameBoard = () => {
           <div className="game-stats">
             <p>Pontuação: {score}</p>
             <p>Movimentos: {moves}</p>
-            <p>Tempo: {formatTime(timer)}</p>
+            {timerEnabled && <p>Tempo: {formatTime(timer)}</p>}
+            <button className="settings-button" onClick={toggleSettings}>
+              {showSettings ? 'Fechar Configurações' : 'Configurações'}
+            </button>
           </div>
         </div>
         
-        <div className="game-controls">
-          {!isMultiplayer ? (
-            <>
-              <div className="difficulty-selector">
-                <h3>Dificuldade:</h3>
-                <div className="button-group">
-                  <button 
-                    className={`button ${difficulty === 'easy' ? 'active' : ''}`}
-                    onClick={() => changeDifficulty('easy')}
-                    disabled={gameStarted}
-                  >
-                    Fácil
-                  </button>
-                  <button 
-                    className={`button ${difficulty === 'medium' ? 'active' : ''}`}
-                    onClick={() => changeDifficulty('medium')}
-                    disabled={gameStarted}
-                  >
-                    Médio
-                  </button>
-                  <button 
-                    className={`button ${difficulty === 'hard' ? 'active' : ''}`}
-                    onClick={() => changeDifficulty('hard')}
-                    disabled={gameStarted}
-                  >
-                    Difícil
-                  </button>
-                </div>
-              </div>
-              
-              <div className="theme-selector">
-                <h3>Tema:</h3>
-                <div className="button-group">
-                  {THEMES.map((t) => (
-                    <button 
-                      key={t}
-                      className={`button ${theme === t ? 'active' : ''}`}
-                      onClick={() => changeTheme(t)}
-                      disabled={gameStarted}
-                    >
-                      {t.charAt(0).toUpperCase() + t.slice(1)}
-                    </button>
+        {showSettings && (
+          <GameSettings 
+            difficulty={difficulty}
+            setDifficulty={setDifficulty}
+            theme={theme}
+            setTheme={setTheme}
+            timerEnabled={timerEnabled}
+            setTimerEnabled={setTimerEnabled}
+            soundEnabled={soundEnabled}
+            setSoundEnabled={setSoundEnabled}
+            resetGame={resetGame}
+            currentThemes={THEMES}
+          />
+        )}
+        
+        {isMultiplayer && (
+          <div className="game-controls">
+            <div className="room-info">
+              <p>Sala: {roomId}</p>
+              <p>Jogadores: {players.length}</p>
+            </div>
+            
+            {players.length > 0 && (
+              <div className="players-list">
+                <h3>Jogadores:</h3>
+                <ul>
+                  {players.map((player, index) => (
+                    <li key={index}>
+                      {player.name}: {player.score} pontos
+                    </li>
                   ))}
-                </div>
+                </ul>
               </div>
-              
+            )}
+            
+            {!gameStarted && (
               <button 
                 className="button"
-                onClick={createRoom}
+                onClick={startMultiplayerGame}
+                disabled={players.length < 1}
               >
-                Criar Sala Multiplayer
+                Iniciar Jogo
               </button>
-              
+            )}
+            
+            <button 
+              className="button"
+              onClick={resetGame}
+            >
+              Sair da Sala
+            </button>
+          </div>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="loading">Carregando...</div>
+      ) : (
+        <>
+          {!isMultiplayer && !gameStarted && (
+            <div className="game-start-overlay">
+              <h3>Clique em uma carta para começar</h3>
+              <p>Ou use as configurações para ajustar o jogo antes de iniciar</p>
+              <div className="button-group">
+                <button className="button" onClick={startGame}>Iniciar Jogo</button>
+                <button className="button" onClick={createRoom}>Criar Sala Multiplayer</button>
+              </div>
               <div className="join-room">
                 <input 
                   type="text" 
@@ -424,108 +489,28 @@ const GameBoard = () => {
                 <button 
                   className="button"
                   onClick={() => joinRoom(roomId)}
+                  disabled={!roomId}
                 >
                   Entrar na Sala
                 </button>
               </div>
-            </>
-          ) : (
-            <>
-              <div className="room-info">
-                <p>Sala: {roomId}</p>
-                <p>Jogadores: {players.length}</p>
-              </div>
-              
-              <div className="difficulty-selector">
-                <h3>Dificuldade:</h3>
-                <div className="button-group">
-                  <button 
-                    className={`button ${difficulty === 'easy' ? 'active' : ''}`}
-                    onClick={() => changeDifficulty('easy')}
-                    disabled={gameStarted}
-                  >
-                    Fácil
-                  </button>
-                  <button 
-                    className={`button ${difficulty === 'medium' ? 'active' : ''}`}
-                    onClick={() => changeDifficulty('medium')}
-                    disabled={gameStarted}
-                  >
-                    Médio
-                  </button>
-                  <button 
-                    className={`button ${difficulty === 'hard' ? 'active' : ''}`}
-                    onClick={() => changeDifficulty('hard')}
-                    disabled={gameStarted}
-                  >
-                    Difícil
-                  </button>
-                </div>
-              </div>
-              
-              <div className="theme-selector">
-                <h3>Tema:</h3>
-                <div className="button-group">
-                  {THEMES.map((t) => (
-                    <button 
-                      key={t}
-                      className={`button ${theme === t ? 'active' : ''}`}
-                      onClick={() => changeTheme(t)}
-                      disabled={gameStarted}
-                    >
-                      {t.charAt(0).toUpperCase() + t.slice(1)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              
-              {players.length > 0 && (
-                <div className="players-list">
-                  <h3>Jogadores:</h3>
-                  <ul>
-                    {players.map((player, index) => (
-                      <li key={index}>
-                        {player.name}: {player.score} pontos
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              
-              <button 
-                className="button"
-                onClick={startMultiplayerGame}
-                disabled={players.length < 1 || gameStarted}
-              >
-                Iniciar Jogo
-              </button>
-            </>
+            </div>
           )}
           
-          <button 
-            className="button"
-            onClick={restartGame}
-          >
-            {isMultiplayer ? 'Sair da Sala' : 'Reiniciar Jogo'}
-          </button>
-        </div>
-      </div>
-
-      {loading ? (
-        <div className="loading">Carregando...</div>
-      ) : (
-        <div className={getGridClass()}>
-          {cards.map(card => (
-            <Card
-              key={card.id}
-              id={card.id}
-              value={card.value}
-              isFlipped={card.isFlipped || matchedPairs.includes(card.value)}
-              isMatched={matchedPairs.includes(card.value)}
-              onClick={() => handleCardClick(card.id)}
-            />
-          ))}
-        </div>
+          <div className={getGridClass()}>
+            {cards.map(card => (
+              <Card
+                key={card.id}
+                id={card.id}
+                value={card.value}
+                isFlipped={card.isFlipped || matchedPairs.includes(card.value)}
+                isMatched={matchedPairs.includes(card.value)}
+                onClick={() => handleCardClick(card.id)}
+                theme={theme}
+              />
+            ))}
+          </div>
+        </>
       )}
 
       {gameOver && (
@@ -533,10 +518,10 @@ const GameBoard = () => {
           <h2>Jogo Finalizado!</h2>
           <p>Sua pontuação: {score}</p>
           <p>Movimentos: {moves}</p>
-          <p>Tempo: {formatTime(timer)}</p>
+          {timerEnabled && <p>Tempo: {formatTime(timer)}</p>}
           <button 
             className="button"
-            onClick={restartGame}
+            onClick={resetGame}
           >
             Jogar Novamente
           </button>
