@@ -37,44 +37,70 @@ const Login = () => {
   };
 
   return (
-    <div className="auth-form">
-      <h2>Login</h2>
-      <form onSubmit={handleSubmit}>
-        <div className="form-group">
-          <label htmlFor="username">Nome de usuário</label>
-          <input
-            type="text"
-            id="username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="Digite seu nome de usuário"
-            required
-          />
-        </div>
+    <div className="auth-container">
+      <div className="auth-form">
+        <h1>Jogo da Memória</h1>
+        <h2>Login</h2>
         
-        <div className="form-group">
-          <label htmlFor="password">Senha</label>
-          <input
-            type="password"
-            id="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Digite sua senha"
-            required
-          />
-        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label htmlFor="username">Nome de usuário</label>
+            <input
+              type="text"
+              id="username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Digite seu nome de usuário"
+              required
+              className="auth-input"
+            />
+          </div>
+          
+          <div className="form-group">
+            <label htmlFor="password">Senha</label>
+            <input
+              type="password"
+              id="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Digite sua senha"
+              required
+              className="auth-input"
+            />
+          </div>
+          
+          <button 
+            type="submit" 
+            className="auth-button"
+            disabled={loading}
+          >
+            {loading ? 'Carregando...' : 'Entrar'}
+          </button>
+        </form>
         
-        <button 
-          type="submit" 
-          className="form-button"
-          disabled={loading}
-        >
-          {loading ? 'Carregando...' : 'Entrar'}
-        </button>
-      </form>
+        <div className="auth-footer">
+          <p>Não tem uma conta? <Link to="/register" className="auth-link">Registre-se</Link></p>
+        </div>
+
+        <div className="auth-features">
+          <div className="feature-item">
+            <span className="feature-icon">🎮</span>
+            <p>Jogue com seus amigos</p>
+          </div>
+          <div className="feature-item">
+            <span className="feature-icon">🏆</span>
+            <p>Acumule pontos</p>
+          </div>
+          <div className="feature-item">
+            <span className="feature-icon">🧠</span>
+            <p>Treine sua memória</p>
+          </div>
+        </div>
+      </div>
       
-      <div className="form-footer">
-        <p>Não tem uma conta? <Link to="/register">Registre-se</Link></p>
+      <div className="auth-credits">
+        <p>Desenvolvido por Diego Silva</p>
+        <p>&copy; 2023 Jogo da Memória - Todos os direitos reservados</p>
       </div>
     </div>
   );
