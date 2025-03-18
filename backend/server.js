@@ -28,18 +28,31 @@ const DIFFICULTY_LEVELS = {
 };
 
 // Gerar um conjunto de cartas baseado na dificuldade
-function generateCards(difficulty = 'medium') {
+function generateCards(difficulty = 'medium', theme = 'emojis') {
   const { pairs } = DIFFICULTY_LEVELS[difficulty];
   
-  // Gerar valores das cartas
-  const cardValues = Array(pairs).fill(0).map((_, i) => i + 1);
+  // Temas disponíveis
+  const themes = {
+    emojis: ['😀', '😁', '😂', '🤣', '😃', '😄', '😅', '😆', '😉', '😊', '😋', '😎', '😍', '😘', '🥰', '😗', '😙', '🥲', '😚', '🙂'],
+    animals: ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🐔', '🐧', '🐦', '🦆', '🦅'],
+    foods: ['🍎', '🍐', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🫐', '🍈', '🍒', '🍑', '🥭', '🍍', '🥥', '🥝', '🍅', '🍆', '🥑', '🥦'],
+    sports: ['⚽', '🏀', '🏈', '⚾', '🥎', '🎾', '🏐', '🏉', '🥏', '🎱', '🪀', '🏓', '🥊', '🥋', '⛸', '🥌', '🛹', '🛼', '🛷', '⛷']
+  };
+  
+  // Selecionar símbolos do tema escolhido
+  const themeSymbols = themes[theme] || themes.emojis;
+  
+  // Selecionar número de pares de acordo com a dificuldade
+  const selectedSymbols = themeSymbols.slice(0, pairs);
   
   // Duplicar valores e embaralhar
-  const cards = [...cardValues, ...cardValues]
+  const cardValues = [...selectedSymbols, ...selectedSymbols];
+  
+  const cards = cardValues
     .sort(() => Math.random() - 0.5)
-    .map((value, index) => ({
+    .map((content, index) => ({
       id: index,
-      value,
+      content,
       isFlipped: false,
       isMatched: false
     }));
@@ -101,7 +114,7 @@ io.on('connection', (socket) => {
         ],
         difficulty: player1.difficulty,
         theme: player1.theme,
-        cards: [],
+        cards: generateCards(player1.difficulty, player1.theme),
         matchedPairs: [],
         currentPlayer: player1.id,
         gameStarted: false,
@@ -110,11 +123,17 @@ io.on('connection', (socket) => {
       
       // Adicionar jogadores à sala
       socket.join(roomId);
+      const otherSocket = io.sockets.sockets.get(player2.id);
+      if (otherSocket) {
+        otherSocket.join(roomId);
+      }
+      
+      // Notificar os jogadores
       io.to(player2.id).emit('matchFound', { 
         roomId, 
         players: rooms[roomId].players 
       });
-      socket.emit('matchFound', { 
+      io.to(player1.id).emit('matchFound', { 
         roomId, 
         players: rooms[roomId].players 
       });
@@ -181,9 +200,48 @@ io.on('connection', (socket) => {
       playerName,
       players: rooms[roomId].players
     });
+    
+    // Se agora temos 2 jogadores, iniciar o jogo automaticamente
+    if (rooms[roomId].players.length === 2) {
+      setTimeout(() => {
+        startGame(roomId);
+      }, 2000); // Pequeno delay para dar tempo de ver a mensagem de jogador entrou
+    }
   });
   
-  // Iniciar jogo
+  // Função para iniciar o jogo
+  function startGame(roomId) {
+    if (!rooms[roomId]) return;
+    
+    // Gerar cartas
+    const room = rooms[roomId];
+    room.cards = generateCards(room.difficulty, room.theme);
+    room.gameStarted = true;
+    
+    // Selecionar o primeiro jogador aleatoriamente
+    const randomIndex = Math.floor(Math.random() * room.players.length);
+    room.currentPlayer = room.players[randomIndex].id;
+    
+    console.log(`Jogo iniciado na sala ${roomId}`);
+    
+    // Notificar todos na sala
+    io.to(roomId).emit('gameStarted', {
+      cards: room.cards,
+      currentPlayer: room.currentPlayer
+    });
+    
+    // Notificar quem é o jogador atual
+    io.to(room.currentPlayer).emit('yourTurn');
+    
+    // Notificar outros jogadores para aguardar
+    room.players.forEach(player => {
+      if (player.id !== room.currentPlayer) {
+        io.to(player.id).emit('waitTurn');
+      }
+    });
+  }
+  
+  // Iniciar jogo (manual)
   socket.on('startGame', (data) => {
     const { roomId } = data;
     
@@ -199,36 +257,12 @@ io.on('connection', (socket) => {
       return;
     }
     
-    // Gerar cartas
-    const cards = generateCards(rooms[roomId].difficulty);
-    rooms[roomId].cards = cards;
-    rooms[roomId].gameStarted = true;
-    
-    // Selecionar o primeiro jogador aleatoriamente
-    const randomIndex = Math.floor(Math.random() * rooms[roomId].players.length);
-    rooms[roomId].currentPlayer = rooms[roomId].players[randomIndex].id;
-    
-    console.log(`Jogo iniciado na sala ${roomId}`);
-    
-    // Notificar todos na sala
-    io.to(roomId).emit('gameStarted', {
-      cards,
-      currentPlayer: rooms[roomId].currentPlayer
-    });
-    
-    // Notificar quem é o jogador atual
-    io.to(rooms[roomId].currentPlayer).emit('yourTurn');
-    // Notificar outros jogadores para aguardar
-    rooms[roomId].players.forEach(player => {
-      if (player.id !== rooms[roomId].currentPlayer) {
-        io.to(player.id).emit('waitTurn');
-      }
-    });
+    startGame(roomId);
   });
   
   // Virar carta
   socket.on('flipCard', (data) => {
-    const { roomId, cardIndex, cardValue, playerId } = data;
+    const { roomId, cardIndex, cardValue } = data;
     
     // Verificar se a sala existe
     if (!rooms[roomId]) {
@@ -245,13 +279,13 @@ io.on('connection', (socket) => {
     // Notificar todos na sala sobre a carta virada
     io.to(roomId).emit('cardFlipped', {
       cardIndex,
-      playerId
+      playerId: socket.id
     });
   });
   
   // Par encontrado
   socket.on('matchFound', (data) => {
-    const { roomId, playerId, playerName, cardValue, score } = data;
+    const { roomId, cardValue, playerId, playerName, score } = data;
     
     // Verificar se a sala existe
     if (!rooms[roomId]) {
@@ -272,11 +306,7 @@ io.on('connection', (socket) => {
     io.to(roomId).emit('matchFound', {
       cardValue,
       playerId,
-      playerName
-    });
-    
-    // Atualizar pontuação
-    io.to(roomId).emit('updateScore', {
+      playerName,
       players: rooms[roomId].players
     });
     
@@ -284,13 +314,21 @@ io.on('connection', (socket) => {
     const { pairs } = DIFFICULTY_LEVELS[rooms[roomId].difficulty];
     if (rooms[roomId].matchedPairs.length === pairs) {
       // Determinar o vencedor
-      const winner = rooms[roomId].players.reduce((a, b) => a.score > b.score ? a : b);
+      const winner = rooms[roomId].players.reduce((a, b) => 
+        (a.score > b.score) ? a : (a.score === b.score) ? (Math.random() > 0.5 ? a : b) : b
+      );
       winner.winner = true;
+      
+      const results = rooms[roomId].players.map(player => ({
+        id: player.id,
+        username: player.name,
+        score: player.score,
+        isWinner: player.id === winner.id
+      }));
       
       // Notificar todos na sala
       io.to(roomId).emit('gameOver', {
-        winner: winner.name,
-        players: rooms[roomId].players
+        results: results
       });
     }
   });
@@ -355,10 +393,22 @@ io.on('connection', (socket) => {
       rooms[roomId].players[playerIndex].winner = true;
     }
     
+    // Determinar o vencedor
+    const winner = rooms[roomId].players.reduce((a, b) => 
+      (a.score > b.score) ? a : (a.score === b.score) ? (Math.random() > 0.5 ? a : b) : b
+    );
+    winner.winner = true;
+    
+    const results = rooms[roomId].players.map(player => ({
+      id: player.id,
+      username: player.name,
+      score: player.score,
+      isWinner: player.id === winner.id
+    }));
+    
     // Notificar todos na sala
     io.to(roomId).emit('gameOver', {
-      winner: playerName,
-      players: rooms[roomId].players
+      results: results
     });
   });
   
@@ -388,11 +438,22 @@ io.on('connection', (socket) => {
         winner.score += 50; // Pontos por W.O.
         winner.winner = true;
         
+        const results = [
+          {
+            id: winner.id,
+            username: winner.name,
+            score: winner.score,
+            isWinner: true
+          }
+        ];
+        
         // Notificar o jogador que ficou
         io.to(winner.id).emit('playerLeft', {
           playerName,
           players: [winner],
-          winnerByDefault: true
+          winnerByDefault: true,
+          gameOver: true,
+          results: results
         });
       }
     }
@@ -421,78 +482,6 @@ io.on('connection', (socket) => {
     }
   });
   
-  // Jogador saindo (ex: fechando o navegador)
-  socket.on('playerLeaving', (data) => {
-    const { roomId } = data;
-    
-    // Simular evento de saída da sala
-    socket.emit('leaveRoom', { roomId });
-  });
-  
-  // Reconectar à sala
-  socket.on('reconnectToRoom', (data) => {
-    const { roomId, playerName, playerId } = data;
-    
-    // Verificar se a sala existe
-    if (!rooms[roomId]) {
-      socket.emit('error', { message: 'Sala não encontrada' });
-      return;
-    }
-    
-    // Verificar se o jogador estava na sala
-    const playerIndex = rooms[roomId].players.findIndex(p => p.id === playerId);
-    if (playerIndex === -1) {
-      socket.emit('error', { message: 'Jogador não encontrado na sala' });
-      return;
-    }
-    
-    // Atualizar ID do socket
-    rooms[roomId].players[playerIndex].id = socket.id;
-    if (rooms[roomId].currentPlayer === playerId) {
-      rooms[roomId].currentPlayer = socket.id;
-    }
-    
-    // Adicionar jogador ao socketio room
-    socket.join(roomId);
-    
-    console.log(`${playerName} reconectou à sala ${roomId}`);
-    
-    // Enviar estado atual do jogo
-    socket.emit('reconnected', {
-      gameState: {
-        cards: rooms[roomId].cards,
-        matchedPairs: rooms[roomId].matchedPairs,
-        players: rooms[roomId].players,
-        gameStarted: rooms[roomId].gameStarted,
-        currentPlayer: rooms[roomId].currentPlayer
-      }
-    });
-    
-    // Notificar se é a vez do jogador
-    if (rooms[roomId].currentPlayer === socket.id) {
-      socket.emit('yourTurn');
-    } else {
-      socket.emit('waitTurn');
-    }
-  });
-  
-  // Obter salas disponíveis
-  socket.on('getRooms', () => {
-    // Filtrar salas que estão aguardando jogadores
-    const availableRooms = Object.values(rooms).filter(room => 
-      room.players.length < 2 && !room.gameStarted
-    );
-    
-    socket.emit('availableRooms', {
-      rooms: availableRooms.map(room => ({
-        id: room.id,
-        players: room.players.length,
-        difficulty: room.difficulty,
-        theme: room.theme
-      }))
-    });
-  });
-  
   // Desconexão
   socket.on('disconnect', () => {
     console.log(`Cliente desconectado: ${socket.id}`);
@@ -510,12 +499,6 @@ io.on('connection', (socket) => {
         // Jogador encontrado na sala
         const playerName = rooms[roomId].players[playerIndex].name;
         
-        // Notificar outros jogadores
-        io.to(roomId).emit('playerLeft', {
-          playerName,
-          players: rooms[roomId].players.filter(p => p.id !== socket.id)
-        });
-        
         // Se o jogo já começou, verificar se há outro jogador
         if (rooms[roomId].gameStarted) {
           const remainingPlayers = rooms[roomId].players.filter(p => p.id !== socket.id);
@@ -525,17 +508,34 @@ io.on('connection', (socket) => {
             winner.score += 50; // Pontos por W.O.
             winner.winner = true;
             
+            const results = [
+              {
+                id: winner.id,
+                username: winner.name,
+                score: winner.score,
+                isWinner: true
+              }
+            ];
+            
             // Notificar o jogador que ficou
             io.to(winner.id).emit('playerLeft', {
               playerName,
               players: [winner],
-              winnerByDefault: true
+              winnerByDefault: true,
+              gameOver: true,
+              results: results
             });
           }
         }
         
         // Remover jogador da sala
         rooms[roomId].players = rooms[roomId].players.filter(p => p.id !== socket.id);
+        
+        // Notificar outros jogadores
+        io.to(roomId).emit('playerLeft', {
+          playerName,
+          players: rooms[roomId].players
+        });
         
         // Se não há mais jogadores, remover a sala
         if (rooms[roomId].players.length === 0) {
@@ -549,6 +549,23 @@ io.on('connection', (socket) => {
           }
         }
       }
+    });
+  });
+  
+  // Obter salas disponíveis
+  socket.on('getRooms', () => {
+    // Filtrar salas que estão aguardando jogadores
+    const availableRooms = Object.values(rooms).filter(room => 
+      room.players.length < 2 && !room.gameStarted
+    );
+    
+    socket.emit('availableRooms', {
+      rooms: availableRooms.map(room => ({
+        id: room.id,
+        players: room.players.length,
+        difficulty: room.difficulty,
+        theme: room.theme
+      }))
     });
   });
 });
