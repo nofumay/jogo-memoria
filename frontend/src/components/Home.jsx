@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import AuthService from '../services/AuthService';
 
@@ -8,18 +8,26 @@ const Home = () => {
   const [totalPoints, setTotalPoints] = useState(0);
 
   useEffect(() => {
-    // Verificar se o usuário está logado
-    const user = AuthService.getCurrentUser();
-    if (user) {
-      setIsAuthenticated(true);
-      setUsername(user.username);
-      
-      // Carregar pontos do jogador
-      const points = localStorage.getItem(`memoryGamePoints_${user.username}`);
-      if (points) {
-        setTotalPoints(parseInt(points, 10));
+    const checkAuthStatus = () => {
+      try {
+        const user = AuthService.getCurrentUser();
+        if (user) {
+          setIsAuthenticated(true);
+          setUsername(user.username);
+          // Carregar pontos do usuário do localStorage
+          const points = localStorage.getItem(`memoryGamePoints_${user.username}`);
+          setTotalPoints(points ? parseInt(points) : 0);
+        } else {
+          setIsAuthenticated(false);
+          setUsername('');
+        }
+      } catch (error) {
+        console.error('Erro ao verificar autenticação:', error);
+        setIsAuthenticated(false);
       }
-    }
+    };
+
+    checkAuthStatus();
   }, []);
 
   return (
@@ -27,79 +35,61 @@ const Home = () => {
       <h1>Jogo da Memória Multiplayer</h1>
       
       {isAuthenticated ? (
-        <p>Bem-vindo de volta, <strong>{username}</strong>! Continue desafiando sua memória e divirta-se com diferentes temas e níveis de dificuldade.</p>
+        <>
+          <p>Bem-vindo(a), {username}! <span className="points-display">Pontos: <strong>{totalPoints}</strong></span></p>
+          <div className="home-buttons">
+            <Link to="/game" className="button">Jogar Agora</Link>
+            <Link to="/leaderboard" className="button">Ranking</Link>
+          </div>
+        </>
       ) : (
-        <p>Teste sua memória neste divertido jogo multiplayer! Encontre pares de cartas e desafie seus amigos.</p>
+        <>
+          <p>Faça login ou crie uma conta para jogar e salvar seu progresso!</p>
+          <div className="home-buttons">
+            <Link to="/login" className="button">Login</Link>
+            <Link to="/register" className="button">Cadastrar</Link>
+          </div>
+        </>
       )}
-      
-      <div className="home-buttons">
-        {isAuthenticated ? (
-          <>
-            <Link to="/game" className="button start-game-button">Jogar Agora</Link>
-            {totalPoints > 0 && (
-              <div className="points-display">
-                <span>Seus pontos: <strong>{totalPoints}</strong></span>
-              </div>
-            )}
-          </>
-        ) : (
-          <>
-            <Link to="/login" className="button">Entrar</Link>
-            <Link to="/register" className="button">Registrar</Link>
-          </>
-        )}
-      </div>
 
-      <h2>Novidades e Funcionalidades</h2>
-      
+      <h2>Funcionalidades</h2>
       <div className="home-features">
         <div className="card">
-          <h3>Multiplayer</h3>
-          <p>Jogue com amigos em tempo real! Crie uma sala e compartilhe o código para que seus amigos entrem na partida.</p>
+          <h3>Multijogador</h3>
+          <p>Jogue contra amigos online em tempo real!</p>
         </div>
-        
         <div className="card">
           <h3>Temas Variados</h3>
-          <p>Escolha entre diferentes temas como animais, frutas, emojis e esportes para personalizar sua experiência.</p>
+          <p>Escolha entre emojis, animais, comidas e esportes.</p>
         </div>
-        
         <div className="card">
-          <h3>Níveis de Dificuldade</h3>
-          <p>Desafie-se com diferentes níveis: fácil, médio e difícil, cada um com seu próprio layout e número de cartas.</p>
+          <h3>Dificuldade</h3>
+          <p>Ajuste a dificuldade do jogo de acordo com sua habilidade.</p>
         </div>
       </div>
 
       <div className="home-how-to-play">
         <h2>Como Jogar</h2>
-        
         <div className="steps">
           <div className="step">
             <div className="step-number">1</div>
-            <p>Escolha um tema e nível de dificuldade</p>
+            <p>Selecione o tema e o nível de dificuldade.</p>
           </div>
-          
           <div className="step">
             <div className="step-number">2</div>
-            <p>Encontre pares de cartas clicando nelas</p>
+            <p>Encontre pares de cartas combinando seus símbolos.</p>
           </div>
-          
           <div className="step">
             <div className="step-number">3</div>
-            <p>Quando for sua vez, tente fazer mais pontos que seu oponente</p>
-          </div>
-          
-          <div className="step">
-            <div className="step-number">4</div>
-            <p>Quem encontrar mais pares vence!</p>
+            <p>Vença encontrando mais pares que seu oponente!</p>
           </div>
         </div>
       </div>
 
       <div className="home-footer">
-        {isAuthenticated ? (
-          <Link to="/game" className="button start-game-button">Iniciar Jogo</Link>
-        ) : (
-          <p>Faça login para começar a jogar online!</p>
+        <p>Jogue online e acumule pontos para aparecer no ranking!</p>
+        {isAuthenticated && (
+          <Link to="/game" className="button">Começar Agora</Link>
         )}
       </div>
     </div>
