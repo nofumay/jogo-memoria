@@ -1,6 +1,6 @@
 import React from 'react';
 
-const Card = ({ id, value, isFlipped, isMatched, onClick }) => {
+const Card = ({ id, value, isFlipped, isMatched, onClick, theme = 'animals', disabled = false }) => {
   // Array de emojis para as cartas com temas diferentes
   const emojiThemes = {
     animals: ['🐶', '🐱', '🦁', '🐼', '🐨', '🦊', '🐯', '🦄', '🐮', '🐷', '🐸', '🐔', '🐧', '🦅', '🦋', '🐢'],
@@ -9,20 +9,35 @@ const Card = ({ id, value, isFlipped, isMatched, onClick }) => {
     sports: ['⚽', '🏀', '🏈', '⚾', '🎾', '🏐', '🏉', '🎱', '🏓', '🏸', '🥊', '🥋', '⛳', '🎯', '🎮', '♟️']
   };
 
-  // Selecione um tema (poderíamos fazer isso dinâmico através de props)
-  const currentTheme = 'animals';
-  const emojis = emojiThemes[currentTheme];
+  // Use o tema passado por props
+  const emojis = emojiThemes[theme] || emojiThemes.animals;
 
-  const cardClassName = `card ${isFlipped ? 'flipped' : ''} ${isMatched ? 'matched' : ''}`;
+  // Classes para a carta
+  const cardClassName = `
+    card 
+    ${isFlipped ? 'flipped' : ''} 
+    ${isMatched ? 'matched' : ''} 
+    ${disabled ? 'disabled' : ''} 
+    ${!isFlipped && !isMatched && !disabled ? 'playable' : ''}
+  `;
 
   return (
     <div 
       className={cardClassName}
       onClick={onClick}
+      data-id={id}
+      data-value={value}
     >
       <div className="card-inner">
-        <div className="card-front">?</div>
-        <div className="card-back">{emojis[value - 1]}</div>
+        <div className="card-front">
+          <span className="card-question">?</span>
+          {!isFlipped && !isMatched && !disabled && (
+            <div className="card-playable-indicator"></div>
+          )}
+        </div>
+        <div className="card-back">
+          <span className="card-emoji">{emojis[value - 1]}</span>
+        </div>
       </div>
     </div>
   );
