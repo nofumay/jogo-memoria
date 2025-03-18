@@ -1,31 +1,65 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 const Home = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [username, setUsername] = useState('');
+  const navigate = useNavigate();
   
   useEffect(() => {
-    // Verificar autenticação do usuário aqui (implementação futura)
-    // Por enquanto, vamos simular que não está autenticado
-    setIsAuthenticated(false);
+    // Verifica se o usuário está logado verificando se há um nome de usuário na barra de navegação
+    // Em um sistema real, isso seria feito verificando tokens de autenticação ou sessão
+    const checkAuthentication = () => {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        try {
+          const userData = JSON.parse(storedUser);
+          setIsAuthenticated(true);
+          setUsername(userData.username || 'usuário');
+        } catch (e) {
+          console.error('Erro ao processar dados do usuário:', e);
+          setIsAuthenticated(false);
+        }
+      } else {
+        // Simulação: verificar se estamos mostrando usuário logado na UI
+        const userElement = document.querySelector('.navbar-user');
+        if (userElement && userElement.textContent.includes('fumay')) {
+          setIsAuthenticated(true);
+          setUsername('fumay');
+        }
+      }
+    };
+    
+    checkAuthentication();
   }, []);
+
+  // Função para iniciar o jogo diretamente
+  const startGame = () => {
+    navigate('/game');
+  };
 
   return (
     <div className="home-container">
       <h1>Jogo da Memória Multiplayer</h1>
-      <p>Bem-vindo ao melhor jogo da memória online! Teste suas habilidades de memorização, 
-      desafie seus amigos e divirta-se com diferentes temas e níveis de dificuldade.</p>
       
-      <div className="home-buttons">
-        {isAuthenticated ? (
-          <Link to="/game" className="button start-game-button">Iniciar Jogo</Link>
-        ) : (
-          <>
+      {isAuthenticated ? (
+        <>
+          <p>Bem-vindo de volta, <strong>{username}</strong>! Continue desafiando sua memória e divirta-se com diferentes temas e níveis de dificuldade.</p>
+          <div className="home-buttons">
+            <button onClick={startGame} className="button start-game-button">Jogar Agora</button>
+            <Link to="/leaderboard" className="button">Ranking</Link>
+          </div>
+        </>
+      ) : (
+        <>
+          <p>Bem-vindo ao melhor jogo da memória online! Teste suas habilidades de memorização, 
+          desafie seus amigos e divirta-se com diferentes temas e níveis de dificuldade.</p>
+          <div className="home-buttons">
             <Link to="/login" className="button">Entrar</Link>
             <Link to="/register" className="button">Cadastrar</Link>
-          </>
-        )}
-      </div>
+          </div>
+        </>
+      )}
       
       <h2>Novidades e Funcionalidades</h2>
       <div className="home-features">
@@ -82,7 +116,7 @@ const Home = () => {
       
       <div className="home-footer">
         {isAuthenticated ? (
-          <Link to="/game" className="button start-game-button">Começar a Jogar Agora!</Link>
+          <button onClick={startGame} className="button start-game-button">Começar a Jogar Agora!</button>
         ) : (
           <p>Faça login ou cadastre-se para começar a jogar e salvar suas pontuações!</p>
         )}
