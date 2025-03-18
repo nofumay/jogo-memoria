@@ -11,15 +11,39 @@ const Navbar = () => {
   
   // Verificar autenticação sempre que a rota mudar
   useEffect(() => {
-    setIsAuthenticated(AuthService.isAuthenticated());
-    setCurrentUser(AuthService.getCurrentUser());
+    const checkAuthStatus = () => {
+      try {
+        const isAuth = AuthService.isAuthenticated();
+        setIsAuthenticated(isAuth);
+        setCurrentUser(isAuth ? AuthService.getCurrentUser() : null);
+      } catch (error) {
+        console.error('Erro ao verificar autenticação:', error);
+        setIsAuthenticated(false);
+        setCurrentUser(null);
+      }
+    };
+
+    checkAuthStatus();
   }, [location]);
 
   const handleLogout = () => {
-    AuthService.logout();
-    setIsAuthenticated(false);
-    setCurrentUser(null);
-    navigate('/login');
+    try {
+      // Limpar dados do usuário
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
+      
+      // Atualizar estado
+      setIsAuthenticated(false);
+      setCurrentUser(null);
+      
+      // Informar o AuthService
+      AuthService.logout();
+      
+      // Redirecionar para login
+      navigate('/login');
+    } catch (error) {
+      console.error('Erro ao fazer logout:', error);
+    }
   };
 
   const toggleMenu = () => {
@@ -29,7 +53,7 @@ const Navbar = () => {
   return (
     <nav className="navbar">
       <div className="navbar-brand">
-        <Link to="/">Jogo da Memória</Link>
+        <Link to={isAuthenticated ? "/game" : "/"}>Jogo da Memória</Link>
       </div>
       
       <div className="navbar-mobile-toggle" onClick={toggleMenu}>
@@ -38,15 +62,22 @@ const Navbar = () => {
         <span></span>
       </div>
       
-      <div className={`navbar-menu ${isMenuOpen ? 'open' : ''}`}>
+      <div className={`navbar-links ${isMenuOpen ? 'open' : ''}`}>
         <Link to="/" onClick={() => setIsMenuOpen(false)}>Início</Link>
+        
         {isAuthenticated ? (
           <>
             <Link to="/game" onClick={() => setIsMenuOpen(false)}>Jogar</Link>
-            <div className="navbar-user">
-              <span>Olá, {currentUser?.username || 'Usuário'}</span>
-            </div>
-            <button className="navbar-button" onClick={handleLogout}>Sair</button>
+            <span className="navbar-user">
+              Olá, {currentUser?.username || 'Usuário'}
+            </span>
+            <button 
+              onClick={handleLogout} 
+              className="navbar-button"
+              id="sair-button"
+            >
+              Sair
+            </button>
           </>
         ) : (
           <>
