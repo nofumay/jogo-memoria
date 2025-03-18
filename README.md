@@ -1,123 +1,98 @@
 # Jogo da Memória Multiplayer
 
-Um jogo da memória multiplayer online onde você pode criar salas, jogar contra amigos e acumular pontos!
+Um jogo da memória multiplayer online desenvolvido com React e Socket.io, permitindo que jogadores se divirtam encontrando pares de cartas em tempo real.
 
 ## Funcionalidades
 
-- **Modo Multiplayer Online**: Jogue contra outros jogadores em tempo real
-- **Sistema de Matchmaking**: Encontre oponentes automaticamente
-- **Salas Personalizadas**: Crie sua própria sala e convide amigos usando o código
-- **Diferentes Temas**: Escolha entre temas como Animais, Frutas, Emojis e Esportes
-- **Níveis de Dificuldade**: Três níveis de dificuldade (Fácil, Médio, Difícil)
-- **Sistema de Pontuação**: Ganhe pontos ao vencer partidas e acumule-os no seu perfil
-- **Efeitos Sonoros**: Sons para uma experiência imersiva de jogo
+- 🎮 **Multiplayer em tempo real** - Jogue contra amigos online
+- 🎭 **Múltiplos temas** - Escolha entre emojis, animais, comidas e esportes
+- 🎚️ **Níveis de dificuldade** - Jogue no modo fácil, médio ou difícil
+- 🏆 **Sistema de pontuação** - Acumule pontos e veja o ranking
+- 🔊 **Efeitos sonoros** - Desfrute de uma experiência com áudio imersiva
 
-## Como Jogar
+## Como iniciar o jogo
 
-1. **Crie uma conta ou faça login** - Primeiro, registre-se ou faça login para acessar o jogo
-2. **Escolha como jogar**:
-   - Clique em "Iniciar Jogo" para entrar na fila de matchmaking
-   - Clique em "Criar Sala" para criar uma sala e convidar amigos
-   - Digite um código de sala e clique em "Entrar na Sala" para entrar em uma sala existente
-3. **Jogue**:
-   - A cada turno, selecione duas cartas para encontrar pares
-   - Você continua jogando enquanto acertar os pares
-   - Quando errar, passa a vez para o oponente
-4. **Ganhe pontos**:
-   - Ganhe 10 pontos por cada par encontrado
-   - Ganhe 100 pontos adicionais ao vencer a partida
-   - Se seu oponente abandonar o jogo, você ganha 50 pontos e a vitória
+### Pré-requisitos
 
-## Configuração para Desenvolvimento
+- Node.js (v14+)
+- NPM ou Yarn
 
-### Requisitos
-- Node.js 14+ 
-- npm ou yarn
+### Instalação
 
-### Frontend
+1. Clone o repositório
 
-1. Navegue até a pasta frontend
 ```bash
-cd frontend
+git clone https://github.com/nofumay/jogo-memoria.git
+cd jogo-memoria
 ```
 
-2. Instale as dependências
-```bash
-npm install
-# ou
-yarn install
-```
+2. Instale as dependências do backend
 
-3. Configure o arquivo .env na raiz do frontend
-```
-REACT_APP_SOCKET_URL=http://localhost:3001
-```
-
-4. Inicie o servidor de desenvolvimento
-```bash
-npm start
-# ou
-yarn start
-```
-
-### Backend
-
-1. Navegue até a pasta backend
 ```bash
 cd backend
-```
-
-2. Instale as dependências
-```bash
 npm install
-# ou
-yarn install
 ```
 
-3. Inicie o servidor
+3. Instale as dependências do frontend
+
 ```bash
-npm start
-# ou
-yarn start
+cd ../frontend
+npm install
 ```
 
-## Como funciona o Matchmaking
+### Executando o jogo
 
-Quando você clica em "Iniciar Jogo", o sistema:
+1. Inicie o servidor backend (em uma janela de terminal)
 
-1. Adiciona você à fila de matchmaking
-2. Procura outro jogador que também esteja na fila
-3. Quando encontra um par, cria uma sala automaticamente 
-4. Conecta ambos os jogadores à sala
-5. Inicia a partida
+```bash
+cd backend
+npm start
+```
 
-É necessário que o jogo tenha exatamente dois jogadores para iniciar. 
-Se um jogador sair ou atualizar a página durante a partida, o outro jogador ganha automaticamente.
+2. Inicie o cliente frontend (em outra janela de terminal)
 
-## Como jogar com amigos
+```bash
+cd frontend
+npm start
+```
 
-1. Um jogador clica em "Criar Sala"
-2. O sistema gera um código único de sala
-3. O jogador compartilha esse código com o amigo
-4. O amigo usa o código para entrar na sala
-5. Quando ambos estiverem prontos, a partida pode começar
+3. Acesse o jogo em seu navegador: [http://localhost:3000](http://localhost:3000)
 
-## Tecnologias Utilizadas
+## Como jogar
 
-- **Frontend**: React, Socket.io-client, CSS
-- **Backend**: Node.js, Express, Socket.io
-- **Armazenamento**: LocalStorage para pontuações e perfis
+1. **Login/Registro** - Crie uma conta ou faça login para começar
+2. **Escolha o modo de jogo**:
+   - **Jogar Solo** - Pratique sozinho
+   - **Encontrar Oponente** - Jogue contra outro jogador online
+   - **Criar Sala** - Crie uma sala e convide um amigo
+   - **Entrar em Sala** - Entre em uma sala existente usando o código
 
-## Pontos de Extensão
+3. **Durante o jogo**:
+   - Clique nas cartas para virá-las
+   - Encontre pares correspondentes
+   - No modo multiplayer, os jogadores se alternam após uma tentativa incorreta
+   - Quem encontrar mais pares ganha!
 
-Algumas ideias para melhorar o jogo no futuro:
+## Problemas comuns e soluções
 
-- Adicionar mais temas e cartas
-- Implementar um sistema de ranking global
-- Adicionar um modo de jogo para mais de 2 jogadores
-- Adicionar animações e efeitos visuais mais elaborados
-- Criar um sistema de "conquistas" para os jogadores
+**Os botões não estão funcionando?**
+- Certifique-se de que o servidor backend está rodando na porta 3001
+- Verifique se o frontend está conectado ao backend (verifique o console para mensagens de "Conectado ao servidor")
+
+**Erro de CORS?**
+- Verifique se as configurações CORS no servidor estão corretas
+- Certifique-se de que está acessando o frontend pela URL correta
+
+**Som não está funcionando?**
+- Verifique se os arquivos de som estão na pasta `/frontend/public/sounds/`
+- Verifique se o som está habilitado nas configurações do jogo
+
+## Tecnologias utilizadas
+
+- Frontend: React, React Router, Socket.io Client
+- Backend: Node.js, Express, Socket.io
+- Estilo: CSS3 com animações
 
 ---
 
-Divirta-se jogando!
+Desenvolvido por Diego Silva | Jogo da Memória Multiplayer &copy; 2024
