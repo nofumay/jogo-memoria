@@ -243,6 +243,44 @@ input:checked + .toggle-slider:before {
   transform: translateY(-2px);
 }
 
+/* Home Creator Section */
+.home-creator {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 30px;
+  margin: 50px 0;
+  text-align: center;
+  backdrop-filter: blur(5px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  animation: fadeIn 0.8s ease;
+}
+
+.home-creator h2 {
+  color: white;
+  margin-top: 0;
+  margin-bottom: 20px;
+}
+
+.home-creator p {
+  font-size: 1.1rem;
+  line-height: 1.6;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.home-creator strong {
+  font-weight: 700;
+  color: white;
+  font-size: 1.2rem;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+  padding-bottom: 2px;
+  transition: border-color 0.3s ease;
+}
+
+.home-creator:hover strong {
+  border-color: rgba(255, 255, 255, 0.8);
+}
+
 /* Footer Styles */
 .app-footer {
   background: rgba(0, 0, 0, 0.3);
@@ -967,6 +1005,10 @@ input:checked + .toggle-slider:before {
   .leaderboard-table th,
   .leaderboard-table td {
     padding: 8px;
+  }
+  
+  .home-creator {
+    padding: 20px;
   }
 }
 
