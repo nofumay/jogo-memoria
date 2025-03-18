@@ -1,49 +1,123 @@
-# Jogo da Memória
+# Jogo da Memória Multiplayer
 
-Este é um jogo da memória desenvolvido com React no frontend e Java Spring Boot no backend.
-
-## Estrutura do Projeto
-
-- `frontend/`: Aplicação React
-- `backend/`: API REST em Java Spring Boot
-
-## Tecnologias Utilizadas
-
-### Frontend
-- React
-- Axios para requisições HTTP
-- CSS para estilização
-
-### Backend
-- Java 17
-- Spring Boot
-- Spring Data JPA
-- Banco de dados H2 (em memória)
-
-## Como Executar
-
-### Backend
-1. Navegue até a pasta `backend`
-2. Execute `./mvnw spring-boot:run` (Linux/Mac) ou `mvnw.cmd spring-boot:run` (Windows)
-3. O servidor será iniciado na porta 8080
-
-### Frontend
-1. Navegue até a pasta `frontend`
-2. Execute `npm install` para instalar as dependências
-3. Execute `npm start` para iniciar o servidor de desenvolvimento
-4. Acesse `http://localhost:3000` no navegador
+Um jogo da memória multiplayer online onde você pode criar salas, jogar contra amigos e acumular pontos!
 
 ## Funcionalidades
 
-- Jogo da memória com cartas de emojis
-- Armazenamento das pontuações (menor número de movimentos)
-- Visualização das melhores pontuações
-- Interface responsiva e interativa
+- **Modo Multiplayer Online**: Jogue contra outros jogadores em tempo real
+- **Sistema de Matchmaking**: Encontre oponentes automaticamente
+- **Salas Personalizadas**: Crie sua própria sala e convide amigos usando o código
+- **Diferentes Temas**: Escolha entre temas como Animais, Frutas, Emojis e Esportes
+- **Níveis de Dificuldade**: Três níveis de dificuldade (Fácil, Médio, Difícil)
+- **Sistema de Pontuação**: Ganhe pontos ao vencer partidas e acumule-os no seu perfil
+- **Efeitos Sonoros**: Sons para uma experiência imersiva de jogo
 
 ## Como Jogar
 
-1. Clique em uma carta para virá-la
-2. Clique em outra carta para tentar encontrar o par
-3. Se as cartas forem iguais, elas permanecerão viradas
-4. Se forem diferentes, elas serão viradas de volta após 1 segundo
-5. O objetivo é encontrar todos os pares com o menor número de movimentos possível 
+1. **Crie uma conta ou faça login** - Primeiro, registre-se ou faça login para acessar o jogo
+2. **Escolha como jogar**:
+   - Clique em "Iniciar Jogo" para entrar na fila de matchmaking
+   - Clique em "Criar Sala" para criar uma sala e convidar amigos
+   - Digite um código de sala e clique em "Entrar na Sala" para entrar em uma sala existente
+3. **Jogue**:
+   - A cada turno, selecione duas cartas para encontrar pares
+   - Você continua jogando enquanto acertar os pares
+   - Quando errar, passa a vez para o oponente
+4. **Ganhe pontos**:
+   - Ganhe 10 pontos por cada par encontrado
+   - Ganhe 100 pontos adicionais ao vencer a partida
+   - Se seu oponente abandonar o jogo, você ganha 50 pontos e a vitória
+
+## Configuração para Desenvolvimento
+
+### Requisitos
+- Node.js 14+ 
+- npm ou yarn
+
+### Frontend
+
+1. Navegue até a pasta frontend
+```bash
+cd frontend
+```
+
+2. Instale as dependências
+```bash
+npm install
+# ou
+yarn install
+```
+
+3. Configure o arquivo .env na raiz do frontend
+```
+REACT_APP_SOCKET_URL=http://localhost:3001
+```
+
+4. Inicie o servidor de desenvolvimento
+```bash
+npm start
+# ou
+yarn start
+```
+
+### Backend
+
+1. Navegue até a pasta backend
+```bash
+cd backend
+```
+
+2. Instale as dependências
+```bash
+npm install
+# ou
+yarn install
+```
+
+3. Inicie o servidor
+```bash
+npm start
+# ou
+yarn start
+```
+
+## Como funciona o Matchmaking
+
+Quando você clica em "Iniciar Jogo", o sistema:
+
+1. Adiciona você à fila de matchmaking
+2. Procura outro jogador que também esteja na fila
+3. Quando encontra um par, cria uma sala automaticamente 
+4. Conecta ambos os jogadores à sala
+5. Inicia a partida
+
+É necessário que o jogo tenha exatamente dois jogadores para iniciar. 
+Se um jogador sair ou atualizar a página durante a partida, o outro jogador ganha automaticamente.
+
+## Como jogar com amigos
+
+1. Um jogador clica em "Criar Sala"
+2. O sistema gera um código único de sala
+3. O jogador compartilha esse código com o amigo
+4. O amigo usa o código para entrar na sala
+5. Quando ambos estiverem prontos, a partida pode começar
+
+## Tecnologias Utilizadas
+
+- **Frontend**: React, Socket.io-client, CSS
+- **Backend**: Node.js, Express, Socket.io
+- **Armazenamento**: LocalStorage para pontuações e perfis
+
+## Pontos de Extensão
+
+Algumas ideias para melhorar o jogo no futuro:
+
+- Adicionar mais temas e cartas
+- Implementar um sistema de ranking global
+- Adicionar um modo de jogo para mais de 2 jogadores
+- Adicionar animações e efeitos visuais mais elaborados
+- Criar um sistema de "conquistas" para os jogadores
+
+---
+
+Divirta-se jogando!
