@@ -26,34 +26,62 @@
 
 .card {
   height: 120px;
-  background-color: #fff;
+  background-color: transparent;
   border-radius: 12px;
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
   display: flex;
   justify-content: center;
   align-items: center;
   cursor: pointer;
-  transition: transform 0.6s ease, box-shadow 0.3s ease;
-  transform-style: preserve-3d;
+  perspective: 1000px;
   position: relative;
-  font-size: 2.5rem;
-  color: #333;
 }
 
-.card:hover {
-  transform: translateY(-5px) scale(1.02);
-  box-shadow: 0 15px 30px rgba(0, 0, 0, 0.3);
+.card-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  text-align: center;
+  transition: transform 0.6s;
+  transform-style: preserve-3d;
+  box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);
+  border-radius: 12px;
 }
 
-.card.flipped {
+.card.flipped .card-inner {
   transform: rotateY(180deg);
-  background-color: #f8f9fa;
 }
 
-.card.matched {
-  background-color: #c8e6c9;
+.card-front, .card-back {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 12px;
+  font-size: 2.5rem;
+}
+
+.card-front {
+  background-color: #3a7bd5;
+  color: white;
+}
+
+.card-back {
+  background-color: #f8f9fa;
+  color: #333;
+  transform: rotateY(180deg);
+}
+
+.card.matched .card-inner {
   animation: pulse 1.5s infinite;
   cursor: default;
+}
+
+.card.matched .card-back {
+  background-color: #c8e6c9;
 }
 
 @keyframes pulse {
