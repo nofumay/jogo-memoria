@@ -2,20 +2,17 @@ import React from 'react';
 import './Card.css';
 
 const Card = ({ id, value, isFlipped, isMatched, onClick }) => {
-  const handleClick = () => {
-    onClick(id);
-  };
-
-  const cardClassName = `memory-card ${isFlipped ? 'flipped' : ''} ${isMatched ? 'matched' : ''}`;
-
   return (
-    <div className={cardClassName} onClick={handleClick}>
+    <div 
+      className={`memory-card ${isFlipped ? 'flipped' : ''} ${isMatched ? 'matched' : ''}`}
+      onClick={onClick}
+    >
       <div className="card-inner">
         <div className="card-front">
-          <span>?</span>
+          <span className="card-icon">?</span>
         </div>
         <div className="card-back">
-          <span>{value}</span>
+          <span className="card-value">{value}</span>
         </div>
       </div>
     </div>

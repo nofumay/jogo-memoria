@@ -4,7 +4,7 @@ import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import './App.css';
 
-import Navbar from './components/Navbar/Navbar';
+import Navbar from './components/Navbar';
 import MemoryGame from './components/MemoryGame';
 import ThemeSelector from './components/Themes/ThemeSelector';
 import MultiplayerGame from './components/Multiplayer/MultiplayerGame';

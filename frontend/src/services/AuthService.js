@@ -1,113 +1,160 @@
 import axios from 'axios';
-import jwtDecode from 'jwt-decode';
+import localStorageService from './localStorageService';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+const USE_LOCAL_AUTH = true; // Alternar entre autenticação local e API
 
-// Para desenvolvimento, vamos implementar uma versão simples com localStorage
-class AuthService {
-  register(username, password, email) {
-    // Em ambiente de produção, isso seria uma chamada à API
-    return new Promise((resolve, reject) => {
-      try {
-        // Verificar se o usuário já existe
-        const users = this.getAllUsers();
-        if (users.some(user => user.username === username)) {
-          return reject({ response: { data: { message: 'Nome de usuário já existe' } } });
-        }
-        
-        if (users.some(user => user.email === email)) {
-          return reject({ response: { data: { message: 'Email já cadastrado' } } });
-        }
-
-        // Criar novo usuário
-        const newUser = {
-          id: Date.now(),
-          username,
-          email,
-          password, // Em produção, a senha seria encriptada
-          createdAt: new Date().toISOString()
-        };
-
-        // Salvar no storage
-        users.push(newUser);
-        localStorage.setItem('users', JSON.stringify(users));
-
-        resolve({ user: { ...newUser, password: undefined } });
-      } catch (error) {
-        reject(error);
+const AuthService = {
+  // Função para login
+  login: async (username, password) => {
+    try {
+      if (USE_LOCAL_AUTH) {
+        return localStorageService.login(username, password);
       }
-    });
-  }
-
-  login(username, password) {
-    // Em ambiente de produção, isso seria uma chamada à API
-    return new Promise((resolve, reject) => {
-      try {
-        const users = this.getAllUsers();
-        const user = users.find(
-          u => u.username === username && u.password === password
-        );
-
-        if (!user) {
-          return reject({ response: { data: { message: 'Usuário ou senha inválidos' } } });
-        }
-
-        // Criar objeto usuário sem a senha
-        const userObj = { ...user, password: undefined };
-        
-        // Simular JWT
-        const token = `mock-jwt-token-${Date.now()}`;
-        
-        // Salvar no storage
-        localStorage.setItem('currentUser', JSON.stringify(userObj));
-        localStorage.setItem('token', token);
-
-        resolve({ user: userObj, token });
-      } catch (error) {
-        reject(error);
-      }
-    });
-  }
-
-  logout() {
-    localStorage.removeItem('currentUser');
-    localStorage.removeItem('token');
-  }
-
-  getCurrentUser() {
-    const userStr = localStorage.getItem('currentUser');
-    if (!userStr) return null;
-    return JSON.parse(userStr);
-  }
-
-  isAuthenticated() {
-    return !!localStorage.getItem('token');
-  }
-
-  getAllUsers() {
-    const usersStr = localStorage.getItem('users');
-    return usersStr ? JSON.parse(usersStr) : [];
-  }
-
-  // Para testes e desenvolvimento
-  initializeDefaultUsers() {
-    if (!localStorage.getItem('users')) {
-      const defaultUsers = [
-        {
-          id: 1,
-          username: 'jogador1',
-          email: 'jogador1@example.com',
-          password: 'senha123',
-          createdAt: new Date().toISOString()
-        }
-      ];
-      localStorage.setItem('users', JSON.stringify(defaultUsers));
+      
+      const response = await axios.post(`${API_URL}/auth/login`, {
+        username,
+        password
+      });
+      return response.data;
+    } catch (error) {
+      throw error;
     }
+  },
+
+  // Função para registro
+  register: async (username, email, password) => {
+    try {
+      if (USE_LOCAL_AUTH) {
+        return localStorageService.register(username, email, password);
+      }
+
+      const response = await axios.post(`${API_URL}/auth/register`, {
+        username,
+        email,
+        password
+      });
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Função para criar uma sessão simulada para fins de demonstração
+  simulateLogin: (username) => {
+    const userData = {
+      id: 'simulated-id',
+      username: username || 'fumay',
+      email: `${username || 'fumay'}@example.com`,
+      points: 0
+    };
+
+    localStorage.setItem('user', JSON.stringify(userData));
+    localStorage.setItem('token', 'simulated-token');
+    localStorage.setItem('isAuthenticated', 'true');
+
+    return { user: userData, token: 'simulated-token' };
+  },
+
+  // Função para logout
+  logout: () => {
+    try {
+      console.log("Executando logout...");
+
+      // Armazenar o nome de usuário atual antes de limpar
+      const user = AuthService.getCurrentUser();
+      const username = user ? user.username : null;
+
+      // Limpar TODOS os dados do localStorage para garantir logout completo
+      localStorage.clear();
+
+      // Limpar sessionStorage também
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.clear();
+      }
+
+      // Limpar quaisquer cookies relacionados à autenticação
+      document.cookie.split(";").forEach(function(c) {
+        document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+      });
+
+      // Remover especificamente os itens de autenticação
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('isAuthenticated');
+
+      // Remover pontos do jogo, se houver
+      if (username) {
+        localStorage.removeItem(`memoryGamePoints_${username}`);
+      }
+
+      // Limpar qualquer conexão de socket
+      if (window.socketInstance) {
+        try {
+          window.socketInstance.disconnect();
+          window.socketInstance = null;
+        } catch (e) {
+          console.error('Erro ao desconectar socket:', e);
+        }
+      }
+
+      // Se a API estiver sendo usada, notificar o servidor
+      if (!USE_LOCAL_AUTH) {
+        // Esta seria a chamada para o backend se tivéssemos uma API
+        // axios.post(`${API_URL}/auth/logout`);
+      }
+
+      console.log("Logout completo!");
+      return true;
+    } catch (error) {
+      console.error('Erro ao fazer logout:', error);
+
+      // Tentar limpar manualmente mesmo se houver erro
+      try {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        localStorage.removeItem('isAuthenticated');
+      } catch (e) {
+        console.error('Erro ao limpar localStorage:', e);
+      }
+
+      return false;
+    }
+  },
+
+  // Verifica se o usuário está autenticado
+  isAuthenticated: () => {
+    try {
+      const token = localStorage.getItem('token');
+      const user = localStorage.getItem('user');
+      const isAuth = localStorage.getItem('isAuthenticated');
+
+      return !!(token && user && isAuth === 'true');
+    } catch (error) {
+      console.error('Erro ao verificar autenticação:', error);
+      return false;
+    }
+  },
+
+  // Obtém o usuário atual
+  getCurrentUser: () => {
+    try {
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        return JSON.parse(userStr);
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Erro ao obter usuário atual:', error);
+      return null;
+    }
+  },
+
+  // Obtém o token JWT
+  getToken: () => {
+    return localStorage.getItem('token');
   }
-}
+};
 
-// Inicializar usuários padrão
-const authService = new AuthService();
-authService.initializeDefaultUsers();
-
-export default authService; 
+export default AuthService; 
