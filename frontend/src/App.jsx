@@ -11,6 +11,7 @@ import Login from './components/Login';
 import Register from './components/Register';
 import Footer from './components/Footer';
 import Leaderboard from './components/Leaderboard';
+import NotFound from './components/NotFound';
 
 // Componente de rota protegida
 const ProtectedRoute = ({ children }) => {
@@ -32,6 +33,11 @@ const RedirectIfAuthenticated = ({ children }) => {
     return <Navigate to="/game" />;
   }
   
+  // Se estiver nas páginas de login/registro e já estiver autenticado, ir para o jogo
+  if (isAuthenticated && (window.location.pathname === '/login' || window.location.pathname === '/register')) {
+    return <Navigate to="/game" />;
+  }
+  
   return children;
 };
 
@@ -40,9 +46,10 @@ function App() {
   // e garantir que as informações no localStorage correspondam
   useEffect(() => {
     const userElement = document.querySelector('.navbar-user');
-    if (userElement && userElement.textContent.includes('fumay') && !AuthService.isAuthenticated()) {
+    if (userElement && userElement.textContent.includes('Olá') && !AuthService.isAuthenticated()) {
       // Simular login se o usuário parece estar autenticado na UI mas não no localStorage
-      AuthService.simulateLogin('fumay');
+      const username = userElement.textContent.replace('Olá, ', '').replace('Usuário', 'fumay');
+      AuthService.simulateLogin(username);
     }
   }, []);
 
@@ -68,9 +75,27 @@ function App() {
                 </ProtectedRoute>
               } 
             />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
+            <Route 
+              path="/login" 
+              element={
+                <RedirectIfAuthenticated>
+                  <Login />
+                </RedirectIfAuthenticated>
+              } 
+            />
+            <Route 
+              path="/register" 
+              element={
+                <RedirectIfAuthenticated>
+                  <Register />
+                </RedirectIfAuthenticated>
+              } 
+            />
             <Route path="/leaderboard" element={<Leaderboard />} />
+            <Route path="/ranking" element={<Leaderboard />} />
+            
+            {/* Rota coringa para capturar qualquer URL que não exista */}
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </div>
         <Footer />
