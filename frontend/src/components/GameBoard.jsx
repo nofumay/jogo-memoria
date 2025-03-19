@@ -29,6 +29,8 @@ const GameBoard = () => {
   const [pointsEarned, setPointsEarned] = useState(0);
   const [totalPoints, setTotalPoints] = useState(0);
   const [playerLeft, setPlayerLeft] = useState(false);
+  const [socketConnected, setSocketConnected] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   
   const navigate = useNavigate();
   const timerRef = useRef(null);
@@ -64,8 +66,12 @@ const GameBoard = () => {
     const loadSounds = () => {
       const sounds = ['flip', 'match', 'error', 'win', 'start', 'restart', 'opponent_move'];
       sounds.forEach(sound => {
-        audioRef.current[sound] = new Audio(`/sounds/${sound}.mp3`);
-        audioRef.current[sound].volume = volumeLevel / 100;
+        try {
+          audioRef.current[sound] = new Audio(`/sounds/${sound}.mp3`);
+          audioRef.current[sound].volume = volumeLevel / 100;
+        } catch (error) {
+          console.warn(`Não foi possível carregar o som: ${sound}`, error);
+        }
       });
     };
 
@@ -82,219 +88,249 @@ const GameBoard = () => {
 
   const playSound = (soundName) => {
     if (hasSound && audioRef.current[soundName]) {
-      audioRef.current[soundName].currentTime = 0;
-      audioRef.current[soundName].play().catch(e => console.log("Audio play error:", e));
+      try {
+        audioRef.current[soundName].currentTime = 0;
+        audioRef.current[soundName].play().catch(e => console.log("Audio play error:", e));
+      } catch (error) {
+        console.warn(`Erro ao reproduzir som: ${soundName}`, error);
+      }
     }
   };
 
   const initializeSocket = () => {
-    if (socketRef.current) {
-      // Socket já inicializado
+    if (socketRef.current && socketRef.current.connected) {
+      // Socket já inicializado e conectado
+      setSocketConnected(true);
       return;
     }
 
-    console.log("Inicializando socket...");
-    const serverUrl = 'http://localhost:3001'; // Ajustado para a porta correta do backend
-    socketRef.current = io(serverUrl);
-    
-    socketRef.current.on('connect', () => {
-      console.log('Conectado ao servidor. Socket ID:', socketRef.current.id);
-    });
-
-    socketRef.current.on('roomCreated', (data) => {
-      console.log('Sala criada, aguardando jogadores:', data);
-      setRoomId(data.roomId);
-      setIsWaitingForPlayer(true);
-      setIsMatchmaking(false);
-    });
-
-    socketRef.current.on('playerJoined', (data) => {
-      console.log('Jogador entrou:', data);
-      setPlayers(data.players);
+    try {
+      console.log("Inicializando socket...");
+      const serverUrl = 'http://localhost:3001'; // Porta do servidor backend
+      socketRef.current = io(serverUrl, {
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
+        timeout: 10000
+      });
       
-      if (data.players.length === 2) {
-        setIsWaitingForPlayer(false);
-      }
-    });
+      socketRef.current.on('connect', () => {
+        console.log('Conectado ao servidor. Socket ID:', socketRef.current.id);
+        setSocketConnected(true);
+        setErrorMessage('');
+      });
 
-    socketRef.current.on('gameStarted', (data) => {
-      console.log('Jogo iniciado:', data);
-      setCards(data.cards);
-      setIsGameStarted(true);
-      setCurrentPlayer(data.currentPlayer);
-      setIsYourTurn(data.currentPlayer === socketRef.current.id);
-      playSound('start');
-    });
+      socketRef.current.on('connect_error', (error) => {
+        console.error('Erro de conexão:', error);
+        setSocketConnected(false);
+        setErrorMessage('Erro ao conectar ao servidor. Verifique se o servidor está rodando.');
+      });
 
-    socketRef.current.on('cardFlipped', (data) => {
-      if (data.playerId !== socketRef.current.id) {
-        playSound('opponent_move');
-        setFlippedIndexes(prev => [...prev, data.cardIndex]);
-      }
-    });
+      socketRef.current.on('reconnect_attempt', (attemptNumber) => {
+        console.log(`Tentativa de reconexão #${attemptNumber}`);
+      });
 
-    socketRef.current.on('matchFound', (data) => {
-      console.log('Par encontrado:', data);
-      // Atualizar o estado do jogo com o novo par encontrado
-      const cardValue = data.cardValue;
-      setMatchedPairs(prev => [...prev, cardValue]);
-      
-      // Atualizar pontuação dos jogadores
-      const players = data.players || [];
-      if (players.length > 0) {
-        setPlayers(players);
-      }
-      
-      playSound('match');
-    });
+      socketRef.current.on('disconnect', () => {
+        console.log('Desconectado do servidor');
+        setSocketConnected(false);
+      });
 
-    socketRef.current.on('noMatchFound', (data) => {
-      console.log('Sem match:', data);
-      // Resetar as cartas viradas após um delay
-      setTimeout(() => {
-        setFlippedIndexes([]);
-      }, 1000);
-      
-      playSound('error');
-    });
+      socketRef.current.on('roomCreated', (data) => {
+        console.log('Sala criada, aguardando jogadores:', data);
+        setRoomId(data.roomId);
+        setIsWaitingForPlayer(true);
+        setIsMatchmaking(false);
+        alert(`Sala criada com sucesso! Código: ${data.roomId}`);
+      });
 
-    socketRef.current.on('turnComplete', (data) => {
-      console.log('Turno completo, próximo jogador:', data);
-      setCurrentPlayer(data.nextPlayer);
-      setIsYourTurn(data.nextPlayer === socketRef.current.id);
-      setFlippedIndexes([]);
-    });
-
-    socketRef.current.on('yourTurn', () => {
-      console.log('É a sua vez de jogar!');
-      setIsYourTurn(true);
-    });
-
-    socketRef.current.on('waitTurn', () => {
-      console.log('Aguarde seu turno...');
-      setIsYourTurn(false);
-    });
-
-    socketRef.current.on('updateScore', (data) => {
-      console.log('Atualização de pontuação:', data);
-      setPlayers(data.players);
-    });
-
-    socketRef.current.on('gameOver', (data) => {
-      console.log('Fim de jogo:', data);
-      setIsGameOver(true);
-      
-      // Formatar os resultados para exibição
-      const results = data.players.map(player => ({
-        id: player.id,
-        username: player.name,
-        score: player.score,
-        isWinner: player.winner
-      }));
-      
-      setGameResults(results);
-      
-      // Encontrar o próprio jogador nos resultados
-      const currentPlayerResult = results.find(result => 
-        result.id === socketRef.current.id
-      );
-      
-      if (currentPlayerResult) {
-        setFinalScore(currentPlayerResult.score || 0);
+      socketRef.current.on('playerJoined', (data) => {
+        console.log('Jogador entrou:', data);
+        setPlayers(data.players);
         
-        // Calcular pontos ganhos baseado na pontuação e se é o vencedor
-        const pointsEarned = currentPlayerResult.isWinner ? 
-          currentPlayerResult.score + 20 : 
-          Math.floor(currentPlayerResult.score / 2);
-        
-        setPointsEarned(pointsEarned);
-        
-        // Atualizar pontuação total
-        setTotalPoints(prev => prev + pointsEarned);
-        
-        // Atualizar no localStorage
-        const user = AuthService.getCurrentUser();
-        if (user) {
-          user.points = (user.points || 0) + pointsEarned;
-          localStorage.setItem('user', JSON.stringify(user));
+        if (data.players.length === 2) {
+          setIsWaitingForPlayer(false);
+          alert('Outro jogador entrou na sala! O jogo vai começar...');
         }
-      }
-      
-      playSound('win');
-    });
+      });
 
-    socketRef.current.on('playerLeft', (data) => {
-      console.log('Jogador saiu:', data);
-      setPlayerLeft(true);
-      setPlayers(data.players);
-      
-      // Se a saída resultou em fim de jogo por W.O.
-      if (data.winnerByDefault) {
-        const results = data.players.map(player => ({
-          id: player.id,
-          username: player.name,
-          score: player.score,
-          isWinner: player.winner
-        }));
+      socketRef.current.on('gameStarted', (data) => {
+        console.log('Jogo iniciado:', data);
+        setCards(data.cards);
+        setIsGameStarted(true);
+        setCurrentPlayer(data.currentPlayer);
+        setIsYourTurn(data.currentPlayer === socketRef.current.id);
+        playSound('start');
+      });
+
+      socketRef.current.on('cardFlipped', (data) => {
+        if (data.playerId !== socketRef.current.id) {
+          playSound('opponent_move');
+          setFlippedIndexes(prev => [...prev, data.cardIndex]);
+        }
+      });
+
+      socketRef.current.on('matchFound', (data) => {
+        console.log('Par encontrado:', data);
+        // Atualizar o estado do jogo com o novo par encontrado
+        const cardValue = data.cardValue;
+        setMatchedPairs(prev => [...prev, cardValue]);
         
-        setGameResults(results);
+        // Atualizar pontuação dos jogadores
+        const players = data.players || [];
+        if (players.length > 0) {
+          setPlayers(players);
+        }
+        
+        playSound('match');
+      });
+
+      socketRef.current.on('noMatchFound', (data) => {
+        console.log('Sem match:', data);
+        // Resetar as cartas viradas após um delay
+        setTimeout(() => {
+          setFlippedIndexes([]);
+        }, 1000);
+        
+        playSound('error');
+      });
+
+      socketRef.current.on('turnComplete', (data) => {
+        console.log('Turno completo, próximo jogador:', data);
+        setCurrentPlayer(data.nextPlayer);
+        setIsYourTurn(data.nextPlayer === socketRef.current.id);
+        setFlippedIndexes([]);
+      });
+
+      socketRef.current.on('yourTurn', () => {
+        console.log('É a sua vez de jogar!');
+        setIsYourTurn(true);
+      });
+
+      socketRef.current.on('waitTurn', () => {
+        console.log('Aguarde seu turno...');
+        setIsYourTurn(false);
+      });
+
+      socketRef.current.on('updateScore', (data) => {
+        console.log('Atualização de pontuação:', data);
+        setPlayers(data.players);
+      });
+
+      socketRef.current.on('gameOver', (data) => {
+        console.log('Fim de jogo:', data);
         setIsGameOver(true);
         
+        // Formatar os resultados para exibição
+        const results = data.results || [];
+        setGameResults(results);
+        
+        // Encontrar o próprio jogador nos resultados
         const currentPlayerResult = results.find(result => 
           result.id === socketRef.current.id
         );
         
         if (currentPlayerResult) {
           setFinalScore(currentPlayerResult.score || 0);
-          setPointsEarned(50); // Pontos por W.O.
-          setTotalPoints(prev => prev + 50);
+          
+          // Calcular pontos ganhos
+          const pointsEarned = currentPlayerResult.isWinner ? 
+            currentPlayerResult.score + 20 : 
+            Math.floor(currentPlayerResult.score / 2);
+          
+          setPointsEarned(pointsEarned);
+          setTotalPoints(prev => prev + pointsEarned);
           
           // Atualizar no localStorage
           const user = AuthService.getCurrentUser();
           if (user) {
-            user.points = (user.points || 0) + 50;
+            user.points = (user.points || 0) + pointsEarned;
             localStorage.setItem('user', JSON.stringify(user));
           }
         }
-      }
-    });
+        
+        playSound('win');
+      });
 
-    socketRef.current.on('matchFound', (data) => {
-      console.log("Match encontrado:", data);
-      setRoomId(data.roomId);
-      setIsMatchmaking(false);
-      setPlayers(data.players);
-    });
+      socketRef.current.on('playerLeft', (data) => {
+        console.log('Jogador saiu:', data);
+        setPlayerLeft(true);
+        setPlayers(data.players || []);
+        
+        if (data.winnerByDefault) {
+          alert('O outro jogador saiu. Você venceu por W.O.!');
+          
+          const results = data.results || [];
+          setGameResults(results);
+          setIsGameOver(true);
+          
+          const currentPlayerResult = results.find(result => 
+            result.id === socketRef.current.id
+          );
+          
+          if (currentPlayerResult) {
+            setFinalScore(currentPlayerResult.score || 0);
+            setPointsEarned(50); // Pontos por W.O.
+            setTotalPoints(prev => prev + 50);
+            
+            // Atualizar no localStorage
+            const user = AuthService.getCurrentUser();
+            if (user) {
+              user.points = (user.points || 0) + 50;
+              localStorage.setItem('user', JSON.stringify(user));
+            }
+          }
+        }
+      });
 
-    socketRef.current.on('enterMatchmaking', () => {
-      console.log('Entrou na fila de matchmaking');
-      setIsMatchmaking(true);
-    });
+      socketRef.current.on('matchFound', (data) => {
+        console.log("Match encontrado:", data);
+        setRoomId(data.roomId);
+        setIsMatchmaking(false);
+        setPlayers(data.players);
+        alert('Match encontrado! Iniciando jogo...');
+      });
 
-    socketRef.current.on('error', (error) => {
-      console.error('Erro do socket:', error);
-      alert(`Erro: ${error.message}`);
-    });
+      socketRef.current.on('enterMatchmaking', () => {
+        console.log('Entrou na fila de matchmaking');
+        setIsMatchmaking(true);
+      });
 
-    socketRef.current.on('disconnect', () => {
-      console.log('Desconectado do servidor');
-    });
+      socketRef.current.on('error', (error) => {
+        console.error('Erro do socket:', error);
+        setErrorMessage(error.message || 'Ocorreu um erro no jogo');
+        alert(`Erro: ${error.message}`);
+      });
+    } catch (error) {
+      console.error('Erro ao inicializar socket:', error);
+      setSocketConnected(false);
+      setErrorMessage('Erro ao conectar ao servidor. Verifique se o servidor está rodando.');
+    }
   };
 
   const startGame = (isMulti = false) => {
     setIsMultiplayer(isMulti);
     
     if (isMulti) {
-      if (!socketRef.current) {
+      if (!socketConnected) {
+        // Tentar inicializar o socket novamente
         initializeSocket();
+        
+        if (!socketConnected) {
+          alert('Não foi possível conectar ao servidor. Verifique se o servidor está rodando e tente novamente.');
+          return;
+        }
       }
       
+      console.log('Entrando na fila de matchmaking...');
       socketRef.current.emit('enterMatchmaking', { 
         playerName: username,
         difficulty: difficulty,
         theme: theme
       });
+      
+      setIsMatchmaking(true);
     } else {
+      // Modo single player
       initializeGame(theme, difficulty);
       setIsGameStarted(true);
       playSound('start');
@@ -307,8 +343,14 @@ const GameBoard = () => {
       return;
     }
     
-    if (!socketRef.current) {
+    if (!socketConnected) {
+      // Tentar inicializar o socket novamente
       initializeSocket();
+      
+      if (!socketConnected) {
+        alert('Não foi possível conectar ao servidor. Verifique se o servidor está rodando e tente novamente.');
+        return;
+      }
     }
     
     console.log("Entrando na sala:", roomId, "como", username);
@@ -319,8 +361,14 @@ const GameBoard = () => {
   };
 
   const createRoom = () => {
-    if (!socketRef.current) {
+    if (!socketConnected) {
+      // Tentar inicializar o socket novamente
       initializeSocket();
+      
+      if (!socketConnected) {
+        alert('Não foi possível conectar ao servidor. Verifique se o servidor está rodando e tente novamente.');
+        return;
+      }
     }
     
     console.log("Criando sala como", username, "com tema", theme, "e dificuldade", difficulty);
@@ -499,8 +547,13 @@ const GameBoard = () => {
   };
 
   const copyRoomIdToClipboard = () => {
-    navigator.clipboard.writeText(roomId);
-    alert('Código da sala copiado!');
+    try {
+      navigator.clipboard.writeText(roomId);
+      alert('Código da sala copiado!');
+    } catch (error) {
+      console.error('Erro ao copiar para a área de transferência:', error);
+      alert(`Código da sala: ${roomId} (copie manualmente)`);
+    }
   };
 
   const renderCard = (card, index) => {
@@ -547,6 +600,13 @@ const GameBoard = () => {
         <div className="game-start-overlay">
           <h3>Jogo da Memória</h3>
           
+          {errorMessage && (
+            <div className="error-message">
+              {errorMessage}
+              <button className="button" onClick={initializeSocket}>Tentar novamente</button>
+            </div>
+          )}
+          
           {isMatchmaking ? (
             <div>
               <p>Procurando oponente...</p>
@@ -555,12 +615,17 @@ const GameBoard = () => {
                 <div className="dot"></div>
                 <div className="dot"></div>
               </div>
-              <button className="button" onClick={() => {
-                setIsMatchmaking(false);
-                if (socketRef.current) {
-                  socketRef.current.emit('cancelMatchmaking');
-                }
-              }}>Cancelar</button>
+              <button 
+                className="button" 
+                onClick={() => {
+                  setIsMatchmaking(false);
+                  if (socketRef.current) {
+                    socketRef.current.emit('cancelMatchmaking');
+                  }
+                }}
+              >
+                Cancelar
+              </button>
             </div>
           ) : isWaitingForPlayer ? (
             <div>
@@ -582,8 +647,23 @@ const GameBoard = () => {
               <p>Escolha um modo de jogo:</p>
               
               <div className="button-group">
-                <button className="button" onClick={() => startGame(false)}>Jogar Solo</button>
-                <button className="button" onClick={() => startGame(true)}>Encontrar Oponente</button>
+                <button 
+                  className="button" 
+                  onClick={() => startGame(false)}
+                >
+                  Jogar Solo
+                </button>
+                <button 
+                  className="button" 
+                  onClick={() => {
+                    if (!socketConnected) {
+                      initializeSocket();
+                    }
+                    startGame(true);
+                  }}
+                >
+                  Encontrar Oponente
+                </button>
               </div>
               
               <p>Ou entre em uma sala existente:</p>
@@ -603,11 +683,31 @@ const GameBoard = () => {
                     color: 'white'
                   }}
                 />
-                <button className="button" onClick={joinRoom}>Entrar</button>
+                <button 
+                  className="button"
+                  onClick={() => {
+                    if (!socketConnected) {
+                      initializeSocket();
+                    }
+                    joinRoom();
+                  }}
+                >
+                  Entrar
+                </button>
               </div>
               
               <div className="button-group" style={{ marginTop: '20px' }}>
-                <button className="button" onClick={createRoom}>Criar Sala</button>
+                <button 
+                  className="button" 
+                  onClick={() => {
+                    if (!socketConnected) {
+                      initializeSocket();
+                    }
+                    createRoom();
+                  }}
+                >
+                  Criar Sala
+                </button>
               </div>
               
               <div className="settings-section" style={{ marginTop: '30px' }}>
