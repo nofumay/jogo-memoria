@@ -86,6 +86,16 @@ const AuthService = {
         localStorage.removeItem(`memoryGamePoints_${username}`);
       }
       
+      // Limpar qualquer conexão de socket
+      if (window.socketInstance) {
+        try {
+          window.socketInstance.disconnect();
+          window.socketInstance = null;
+        } catch (e) {
+          console.error('Erro ao desconectar socket:', e);
+        }
+      }
+      
       // Se a API estiver sendo usada, notificar o servidor
       if (!USE_LOCAL_AUTH) {
         // Esta seria a chamada para o backend se tivéssemos uma API
