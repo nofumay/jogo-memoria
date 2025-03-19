@@ -26,23 +26,26 @@ const Navbar = () => {
     checkAuthStatus();
   }, [location]);
 
-  const handleLogout = () => {
+  const handleLogout = (e) => {
+    e.preventDefault(); // Prevenir comportamento padrão
+    
     try {
-      // Limpar dados do usuário
-      localStorage.removeItem('user');
-      localStorage.removeItem('token');
+      console.log("Iniciando logout...");
       
-      // Atualizar estado
+      // Executar logout no AuthService
+      AuthService.logout();
+      
+      // Atualizar estado do componente
       setIsAuthenticated(false);
       setCurrentUser(null);
       
-      // Informar o AuthService
-      AuthService.logout();
+      console.log("Navegando para login...");
       
-      // Redirecionar para login
-      navigate('/login');
+      // Forçar redirecionamento para página de login
+      window.location.href = '/login';
     } catch (error) {
       console.error('Erro ao fazer logout:', error);
+      alert("Erro ao fazer logout. Por favor, tente novamente.");
     }
   };
 
