@@ -42,10 +42,15 @@ const Navbar = () => {
       console.log("Navegando para login...");
       
       // Forçar redirecionamento para página de login
-      window.location.href = '/login';
+      setTimeout(() => {
+        window.location.href = '/login';
+      }, 100);
     } catch (error) {
       console.error('Erro ao fazer logout:', error);
       alert("Erro ao fazer logout. Por favor, tente novamente.");
+      
+      // Mesmo com erro, tentar redirecionar
+      window.location.href = '/login';
     }
   };
 
