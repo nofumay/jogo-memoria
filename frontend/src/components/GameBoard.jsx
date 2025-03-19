@@ -31,11 +31,13 @@ const GameBoard = () => {
   const [playerLeft, setPlayerLeft] = useState(false);
   const [socketConnected, setSocketConnected] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [offlineMode, setOfflineMode] = useState(false);
   
   const navigate = useNavigate();
   const timerRef = useRef(null);
   const socketRef = useRef(null);
   const audioRef = useRef({});
+  const connectionAttemptsRef = useRef(0);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -106,28 +108,45 @@ const GameBoard = () => {
 
     try {
       console.log("Inicializando socket...");
-      const serverUrl = 'http://localhost:3001'; // Porta do servidor backend
+      
+      // Usar o servidor do Netlify em produção ou localhost em desenvolvimento
+      const isProduction = window.location.hostname !== 'localhost';
+      const serverUrl = isProduction 
+        ? 'https://jogo-memoria-server.onrender.com' // URL do servidor hospedado
+        : 'http://localhost:3001';
+        
+      console.log("Conectando ao servidor:", serverUrl);
+      
       socketRef.current = io(serverUrl, {
         reconnection: true,
-        reconnectionAttempts: 5,
+        reconnectionAttempts: 3,
         reconnectionDelay: 1000,
-        timeout: 10000
+        timeout: 5000
       });
       
       socketRef.current.on('connect', () => {
         console.log('Conectado ao servidor. Socket ID:', socketRef.current.id);
         setSocketConnected(true);
         setErrorMessage('');
+        connectionAttemptsRef.current = 0;
       });
 
       socketRef.current.on('connect_error', (error) => {
         console.error('Erro de conexão:', error);
+        connectionAttemptsRef.current += 1;
         setSocketConnected(false);
-        setErrorMessage('Erro ao conectar ao servidor. Verifique se o servidor está rodando.');
-      });
-
-      socketRef.current.on('reconnect_attempt', (attemptNumber) => {
-        console.log(`Tentativa de reconexão #${attemptNumber}`);
+        
+        if (connectionAttemptsRef.current >= 3) {
+          console.log('Múltiplas falhas de conexão, alternando para modo offline');
+          setErrorMessage('');
+          setOfflineMode(true);
+          // Desconectar socket para evitar novas tentativas
+          if (socketRef.current) {
+            socketRef.current.disconnect();
+          }
+        } else {
+          setErrorMessage('Não foi possível conectar ao servidor. Verifique se o servidor está rodando e tente novamente.');
+        }
       });
 
       socketRef.current.on('disconnect', () => {
@@ -304,23 +323,25 @@ const GameBoard = () => {
       console.error('Erro ao inicializar socket:', error);
       setSocketConnected(false);
       setErrorMessage('Erro ao conectar ao servidor. Verifique se o servidor está rodando.');
+      setOfflineMode(true);
     }
   };
 
   const startGame = (isMulti = false) => {
+    if (isMulti && !socketConnected && !offlineMode) {
+      // Tentar inicializar o socket novamente
+      connectionAttemptsRef.current = 0;
+      initializeSocket();
+      
+      if (!socketConnected && !offlineMode) {
+        alert('Não foi possível conectar ao servidor para jogar no modo multiplayer. Tente o modo offline.');
+        return;
+      }
+    }
+    
     setIsMultiplayer(isMulti);
     
-    if (isMulti) {
-      if (!socketConnected) {
-        // Tentar inicializar o socket novamente
-        initializeSocket();
-        
-        if (!socketConnected) {
-          alert('Não foi possível conectar ao servidor. Verifique se o servidor está rodando e tente novamente.');
-          return;
-        }
-      }
-      
+    if (isMulti && socketConnected) {
       console.log('Entrando na fila de matchmaking...');
       socketRef.current.emit('enterMatchmaking', { 
         playerName: username,
@@ -330,7 +351,7 @@ const GameBoard = () => {
       
       setIsMatchmaking(true);
     } else {
-      // Modo single player
+      // Modo single player ou offline
       initializeGame(theme, difficulty);
       setIsGameStarted(true);
       playSound('start');
@@ -343,40 +364,50 @@ const GameBoard = () => {
       return;
     }
     
-    if (!socketConnected) {
+    if (!socketConnected && !offlineMode) {
       // Tentar inicializar o socket novamente
+      connectionAttemptsRef.current = 0;
       initializeSocket();
       
-      if (!socketConnected) {
+      if (!socketConnected && !offlineMode) {
         alert('Não foi possível conectar ao servidor. Verifique se o servidor está rodando e tente novamente.');
         return;
       }
     }
     
-    console.log("Entrando na sala:", roomId, "como", username);
-    socketRef.current.emit('joinRoom', { 
-      roomId: roomId.trim().toUpperCase(), 
-      playerName: username 
-    });
+    if (socketConnected) {
+      console.log("Entrando na sala:", roomId, "como", username);
+      socketRef.current.emit('joinRoom', { 
+        roomId: roomId.trim().toUpperCase(), 
+        playerName: username 
+      });
+    } else {
+      alert('Funcionalidade indisponível no modo offline. Tente jogar no modo solo.');
+    }
   };
 
   const createRoom = () => {
-    if (!socketConnected) {
+    if (!socketConnected && !offlineMode) {
       // Tentar inicializar o socket novamente
+      connectionAttemptsRef.current = 0;
       initializeSocket();
       
-      if (!socketConnected) {
+      if (!socketConnected && !offlineMode) {
         alert('Não foi possível conectar ao servidor. Verifique se o servidor está rodando e tente novamente.');
         return;
       }
     }
     
-    console.log("Criando sala como", username, "com tema", theme, "e dificuldade", difficulty);
-    socketRef.current.emit('createRoom', { 
-      playerName: username,
-      difficulty: difficulty,
-      theme: theme
-    });
+    if (socketConnected) {
+      console.log("Criando sala como", username, "com tema", theme, "e dificuldade", difficulty);
+      socketRef.current.emit('createRoom', { 
+        playerName: username,
+        difficulty: difficulty,
+        theme: theme
+      });
+    } else {
+      alert('Funcionalidade indisponível no modo offline. Tente jogar no modo solo.');
+    }
   };
 
   const initializeGame = (selectedTheme, selectedDifficulty) => {
@@ -436,14 +467,14 @@ const GameBoard = () => {
     if (cards[index].isFlipped || 
         cards[index].isMatched || 
         flippedIndexes.length >= 2 ||
-        (isMultiplayer && !isYourTurn)) {
+        (isMultiplayer && socketConnected && !isYourTurn)) {
       return;
     }
     
     playSound('flip');
     
     // Emit the card flip event in multiplayer mode
-    if (isMultiplayer && socketRef.current) {
+    if (isMultiplayer && socketConnected && socketRef.current) {
       socketRef.current.emit('flipCard', { 
         roomId, 
         cardIndex: index, 
@@ -464,7 +495,7 @@ const GameBoard = () => {
       // Check if the cards match
       if (cards[firstIndex].content === cards[secondIndex].content) {
         // In multiplayer, emit the match found event
-        if (isMultiplayer && socketRef.current) {
+        if (isMultiplayer && socketConnected && socketRef.current) {
           const newScore = score + 10;
           setScore(newScore);
           
@@ -512,7 +543,7 @@ const GameBoard = () => {
         playSound('error');
         
         // In multiplayer, emit the end turn event
-        if (isMultiplayer && socketRef.current) {
+        if (isMultiplayer && socketConnected && socketRef.current) {
           socketRef.current.emit('endTurn', { 
             roomId,
             firstCardId: firstIndex,
@@ -532,7 +563,7 @@ const GameBoard = () => {
     playSound('restart');
     clearInterval(timerRef.current);
     
-    if (isMultiplayer && socketRef.current) {
+    if (isMultiplayer && socketConnected && socketRef.current) {
       // Sair da sala atual
       socketRef.current.emit('leaveRoom', { roomId });
     }
@@ -594,6 +625,13 @@ const GameBoard = () => {
     return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
+  const tryAgainConnection = () => {
+    setOfflineMode(false);
+    connectionAttemptsRef.current = 0;
+    setErrorMessage('');
+    initializeSocket();
+  };
+
   if (!isGameStarted) {
     return (
       <div className="game-container">
@@ -603,7 +641,14 @@ const GameBoard = () => {
           {errorMessage && (
             <div className="error-message">
               {errorMessage}
-              <button className="button" onClick={initializeSocket}>Tentar novamente</button>
+              <button className="button" onClick={tryAgainConnection}>Tentar novamente</button>
+            </div>
+          )}
+          
+          {offlineMode && (
+            <div className="info-message">
+              <p>Você está no modo offline. Algumas funcionalidades como jogos multiplayer não estão disponíveis.</p>
+              <button className="button" onClick={tryAgainConnection}>Tentar conectar ao servidor</button>
             </div>
           )}
           
@@ -653,62 +698,57 @@ const GameBoard = () => {
                 >
                   Jogar Solo
                 </button>
-                <button 
-                  className="button" 
-                  onClick={() => {
-                    if (!socketConnected) {
-                      initializeSocket();
-                    }
-                    startGame(true);
-                  }}
-                >
-                  Encontrar Oponente
-                </button>
+                
+                {!offlineMode && (
+                  <button 
+                    className="button" 
+                    onClick={() => startGame(true)}
+                    disabled={!socketConnected}
+                  >
+                    Encontrar Oponente
+                  </button>
+                )}
               </div>
               
-              <p>Ou entre em uma sala existente:</p>
-              
-              <div className="join-room">
-                <input 
-                  type="text" 
-                  value={roomId} 
-                  onChange={(e) => setRoomId(e.target.value)} 
-                  placeholder="Código da sala"
-                  style={{ 
-                    padding: '10px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    flex: 1,
-                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                    color: 'white'
-                  }}
-                />
-                <button 
-                  className="button"
-                  onClick={() => {
-                    if (!socketConnected) {
-                      initializeSocket();
-                    }
-                    joinRoom();
-                  }}
-                >
-                  Entrar
-                </button>
-              </div>
-              
-              <div className="button-group" style={{ marginTop: '20px' }}>
-                <button 
-                  className="button" 
-                  onClick={() => {
-                    if (!socketConnected) {
-                      initializeSocket();
-                    }
-                    createRoom();
-                  }}
-                >
-                  Criar Sala
-                </button>
-              </div>
+              {!offlineMode && (
+                <>
+                  <p>Ou entre em uma sala existente:</p>
+                  
+                  <div className="join-room">
+                    <input 
+                      type="text" 
+                      value={roomId} 
+                      onChange={(e) => setRoomId(e.target.value)} 
+                      placeholder="Código da sala"
+                      style={{ 
+                        padding: '10px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        flex: 1,
+                        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                        color: 'white'
+                      }}
+                    />
+                    <button 
+                      className="button"
+                      onClick={joinRoom}
+                      disabled={!socketConnected}
+                    >
+                      Entrar
+                    </button>
+                  </div>
+                  
+                  <div className="button-group" style={{ marginTop: '20px' }}>
+                    <button 
+                      className="button" 
+                      onClick={createRoom}
+                      disabled={!socketConnected}
+                    >
+                      Criar Sala
+                    </button>
+                  </div>
+                </>
+              )}
               
               <div className="settings-section" style={{ marginTop: '30px' }}>
                 <div className="theme-selector">
