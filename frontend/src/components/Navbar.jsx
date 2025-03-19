@@ -32,25 +32,24 @@ const Navbar = () => {
     try {
       console.log("Iniciando logout...");
       
-      // Executar logout no AuthService
-      AuthService.logout();
-      
-      // Atualizar estado do componente
+      // Atualizar estado do componente antes de executar logout
       setIsAuthenticated(false);
       setCurrentUser(null);
       
-      console.log("Navegando para login...");
+      // Usar o navigate do React Router em vez de window.location
+      navigate('/login');
       
-      // Forçar redirecionamento para página de login
+      // Executar logout no AuthService após navegação
       setTimeout(() => {
-        window.location.href = '/login';
+        AuthService.logout();
+        console.log("Logout completo");
       }, 100);
     } catch (error) {
       console.error('Erro ao fazer logout:', error);
       alert("Erro ao fazer logout. Por favor, tente novamente.");
       
-      // Mesmo com erro, tentar redirecionar
-      window.location.href = '/login';
+      // Mesmo com erro, tentar redirecionar usando o React Router
+      navigate('/login');
     }
   };
 
