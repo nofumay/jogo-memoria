@@ -21,13 +21,30 @@ const getUser = () => {
   }
 };
 
+// Verificar se o usuário já existe
+const userExists = (username, email) => {
+  try {
+    const users = JSON.parse(localStorage.getItem('users') || '[]');
+    return users.some(u => 
+      u.username === username || 
+      (email && u.email === email)
+    );
+  } catch (error) {
+    console.error('Erro ao verificar usuário existente:', error);
+    return false;
+  }
+};
+
 const register = (username, email, password) => {
   try {
+    console.log('Tentando registrar:', username, email);
+    
     // Simulação de registro local
     const users = JSON.parse(localStorage.getItem('users') || '[]');
     
     // Verificar se o usuário já existe
-    if (users.find(u => u.username === username || (email && u.email === email))) {
+    if (userExists(username, email)) {
+      console.error('Usuário ou email já existente:', username, email);
       throw new Error('Usuário ou email já existente');
     }
     
@@ -71,13 +88,16 @@ const login = (username, password) => {
     // Obter lista de usuários
     const users = JSON.parse(localStorage.getItem('users') || '[]');
     console.log('Tentando login para:', username);
-    console.log('Usuários disponíveis:', users);
     
     // Buscar o usuário
-    const user = users.find(u => u.username === username && u.password === password);
+    const user = users.find(u => 
+      u.username === username && 
+      u.password === password
+    );
     
     if (!user) {
       console.error('Credenciais inválidas para:', username);
+      console.log('Usuários disponíveis:', users.map(u => u.username));
       throw new Error('Credenciais inválidas');
     }
     
@@ -108,26 +128,68 @@ const checkAndCreateDemoUsers = () => {
   try {
     const users = JSON.parse(localStorage.getItem('users') || '[]');
     
-    // Se não há usuários, criar um demo
-    if (users.length === 0) {
-      console.log('Criando usuário demo...');
-      const demoUser = {
-        id: Date.now(),
-        username: 'fumay',
-        email: 'fumay@exemplo.com',
-        password: 'fumay',
-        points: 100,
-        createdAt: new Date().toISOString()
-      };
-      
-      users.push(demoUser);
-      localStorage.setItem('users', JSON.stringify(users));
-      console.log('Usuário demo criado com sucesso');
-    }
+    // Remover usuário "fumay" existente para evitar problemas
+    const filteredUsers = users.filter(u => u.username !== 'fumay');
+    
+    // Criar usuário demo fumay para garantir que ele exista
+    const demoUser = {
+      id: Date.now(),
+      username: 'fumay',
+      email: 'fumay@exemplo.com',
+      password: 'fumay',
+      points: 100,
+      createdAt: new Date().toISOString()
+    };
+    
+    filteredUsers.push(demoUser);
+    localStorage.setItem('users', JSON.stringify(filteredUsers));
+    console.log('Usuário demo atualizado com sucesso');
+    
+    // Para depuração, mostrar usuários
+    console.log('Usuários disponíveis:', filteredUsers.map(u => u.username));
   } catch (error) {
     console.error('Erro ao verificar usuários demo:', error);
   }
 };
+
+// Função para capturar tentativas de registro diretamente no formulário
+window.addEventListener('submit', function(event) {
+  const form = event.target;
+  
+  // Verificar se é um formulário de registro
+  if (form && (form.id === 'registerForm' || form.action.includes('register'))) {
+    try {
+      event.preventDefault(); // Evitar envio normal do formulário
+      
+      const usernameField = form.querySelector('input[type="text"], input[id="username"]');
+      const emailField = form.querySelector('input[type="email"]');
+      const passwordField = form.querySelector('input[type="password"]');
+      
+      if (usernameField && passwordField) {
+        const username = usernameField.value;
+        const email = emailField ? emailField.value : null;
+        const password = passwordField.value;
+        
+        console.log('Interceptando envio de formulário de registro:', username, email);
+        
+        // Registrar o usuário usando nossa função
+        if (!userExists(username, email)) {
+          register(username, email, password);
+          alert('Cadastro realizado com sucesso! Redirecionando para o jogo...');
+          
+          // Redirecionar para a página do jogo
+          setTimeout(() => {
+            window.location.href = '/game';
+          }, 500);
+        } else {
+          alert('Usuário ou email já existe. Tente outro nome de usuário.');
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao interceptar formulário:', error);
+    }
+  }
+});
 
 // Verificar usuários demo na inicialização
 checkAndCreateDemoUsers();
@@ -136,5 +198,6 @@ export default {
   saveUser,
   getUser,
   register,
-  login
+  login,
+  userExists
 };
